@@ -2,7 +2,7 @@ import json, re
 from uuid import uuid4
 import jdatetime
 
-from aiogram import Router, F, html, types
+from aiogram import Router, F, html, types, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.utils.media_group import MediaGroupBuilder
 
@@ -23,6 +23,7 @@ def is_admin(uid: int) -> bool:
 
 def to_jalali(date_iso: str) -> str:
     y, m, d = map(int, date_iso.split("-"))
+    j = jdatetime.date.fromgregorian(day=d, month=m, year=m, day=d)
     j = jdatetime.date.fromgregorian(day=d, month=m, year=y)
     return f"{j.year}/{j.month:02d}/{j.day:02d}"
 
@@ -60,10 +61,32 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
     ]
     if show_price and form.get("price_words"):
         parts.append(f"💵 <b>قیمت:</b> {html.quote(form['price_words'])}")
-    if show_desc and form.get("desc"):
+    if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
+
+    # ← سطر جدید: قبل از تاریخ و شماره آگهی
+    parts.append("📞 شماره تماس: 09127475355 - کیوان")
+
     parts.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(parts)
+
+
+def admin_caption(form: dict, number: int, jdate: str) -> str:
+    """کپشن مخصوص ادمین: ابتدا موارد ویرایشی، سپس خلاصه همان‌جا."""
+    lines = ["🧪 <b>موارد نیازمند ویرایش/تایید:</b>"]
+    # توضیحات همیشه قابل ویرایش
+    lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
+    # قیمت فقط در فروش همکاری لازم است
+    if form.get("category") == "فروش همکاری":
+        lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
+    lines.append("—" * 10)
+    lines.append("📋 <b>خلاصه آگهی</b>")
+    lines.append(f"دسته: {html.quote(form['category'])}")
+    lines.append(f"نام خودرو: {html.quote(form['car'])}")
+    lines.append(f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km")
+    lines.append(f"شهر/گیربکس/بیمه: {html.quote(form.get('city') or '—')} / {html.quote(form.get('gear') or '—')} / {html.quote(form.get('insurance') or '—')}")
+    lines.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
+    return "\n".join(lines)
 
 # ---------- دستورات کمکی ----------
 @router.message(CommandStart())
@@ -113,7 +136,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     year  = (payload.get("year") or "").strip()
     color = (payload.get("color") or "").strip()
     km    = (payload.get("km") or "").strip()
-    price_raw = (payload.get("price") or "").strip()  # حالا در «فروش همکاری» هم می‌پذیریم
+    price_raw = (payload.get("price") or "").strip()  # در همه دسته‌ها قابل ورود است
     city  = (payload.get("city") or "").strip()
     ins   = (payload.get("insurance") or "").strip()
     gear  = (payload.get("gear") or "").strip()
@@ -128,21 +151,23 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     if not re.fullmatch(r"\d{1,6}", km):
         return False, "کارکرد باید عددی حداکثر ۶ رقمی باشد.", None
 
-    # قیمت: در غیر «فروش همکاری» اجباری؛ در «فروش همکاری» اختیاری اما اگر فرستاده شود می‌پذیریم
+    num = int(re.sub(r"\D", "", price_raw or "0") or "0")
     price_num = None
     price_words_str = None
-    num = int(re.sub(r"\D", "", price_raw or "0") or "0")
-    if cat != "فروش همکاری":
-        if num < 1 or num > 100_000_000_000:
-            return False, "قیمت باید عددی معتبر تا سقف ۱۰۰ میلیارد تومان باشد.", None
-        price_num = num
-        price_words_str = price_words(num)
-    else:
+
+    if cat == "فروش همکاری":
+        # قیمت اختیاری؛ اگر داد، می‌پذیریم و سقف می‌زنیم
         if num > 0:
             if num > 100_000_000_000:
                 num = 100_000_000_000
             price_num = num
             price_words_str = price_words(num)
+    else:
+        # سایر دسته‌ها، قیمت اجباری
+        if num < 1 or num > 100_000_000_000:
+            return False, "قیمت باید عددی معتبر تا سقف ۱۰۰ میلیارد تومان باشد.", None
+        price_num = num
+        price_words_str = price_words(num)
 
     form = {
         "category": cat, "car": car, "year": year, "color": color, "km": km,
@@ -212,23 +237,17 @@ async def publish_to_group(message: types.Message, form: dict, *, show_price: bo
         msg = await message.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
         return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
-def admin_need_caption(form: dict) -> str:
-    lines = ["🧪 <b>موارد نیازمند تایید/ویرایش:</b>"]
-    # توضیحات همیشه
-    lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
-    # قیمت فقط در فروش همکاری
-    if form.get("category") == "فروش همکاری":
-        lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
-    return "\n".join(lines)
-
-async def send_review_to_admins(bot: types.Bot, form: dict, token: str, photos: list[str]):
+async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
+    """عکس‌ها تأیید نمی‌خواهند؛ فقط جهت مشاهده برای ادمین ارسال می‌شوند.
+       کپشن (موارد ویرایش + خلاصه + تاریخ/شماره) زیر همان عکس اول می‌آید.
+    """
     admins = list(SETTINGS.ADMIN_IDS | EXTRA_ADMINS)
     if not admins:
         return 0
-    cap = admin_need_caption(form)
+    cap = admin_caption(form, grp.get("number"), grp.get("jdate"))
     ok = 0
     for admin_id in admins:
-        # 1) عکس‌ها برای ادمین (اگر وجود دارد)
+        # اگر عکس هست، مدیاگروه با کپشن کامل
         if photos:
             mg = MediaGroupBuilder()
             mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
@@ -239,30 +258,17 @@ async def send_review_to_admins(bot: types.Bot, form: dict, token: str, photos: 
             except Exception:
                 pass
         else:
-            # اگر عکسی نیست، همین کپشن را به صورت پیام می‌فرستیم
             try:
                 await bot.send_message(admin_id, cap, parse_mode="HTML")
             except Exception:
                 pass
-        # 2) پیام دکمه‌ها
+        # دکمه‌های ویرایش/اعمال در پیام جدا (محدودیت تلگرام)
         try:
-            await bot.send_message(admin_id, "برای ویرایش/اعمال از دکمه‌ها استفاده کنید.", reply_markup=admin_review_kb(token))
+            await bot.send_message(admin_id, "ویرایش/اعمال:", reply_markup=admin_review_kb(token))
             ok += 1
         except Exception:
             pass
     return ok
-
-def admin_preview_text(form: dict, user: types.User) -> str:
-    # فقط جهت اطلاع مختصر؛ موارد تاییدی در پیام بالایی آمده است.
-    parts = [
-        "ℹ️ خلاصه آگهی",
-        f"دسته: {html.quote(form['category'])}",
-        f"نام خودرو: {html.quote(form['car'])}",
-        f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km",
-        f"شهر/گیربکس/بیمه: {html.quote(form.get('city') or '—')} / {html.quote(form.get('gear') or '—')} / {html.quote(form.get('insurance') or '—')}",
-        f"کاربر: {html.quote(user.full_name)} (id={user.id})",
-    ]
-    return "\n".join(parts)
 
 @router.message(Command("done"))
 async def on_done(message: types.Message):
@@ -288,16 +294,8 @@ async def on_done(message: types.Message):
     PENDING[token]["grp"] = grp
     PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
 
-    # ارسال بررسی برای ادمین‌ها (فقط موارد لازم) + تصاویر
-    sent = await send_review_to_admins(message.bot, form, token, form.get("photos") or [])
-
-    # پیام خلاصه به ادمین
-    admins = list(SETTINGS.ADMIN_IDS | EXTRA_ADMINS)
-    for admin_id in admins:
-        try:
-            await message.bot.send_message(admin_id, admin_preview_text(form, message.from_user), parse_mode="HTML")
-        except Exception:
-            pass
+    # ارسال برای ادمین‌ها: همان کپشن زیر عکس اول + دکمه‌ها
+    sent = await send_review_to_admins(message.bot, form, token, form.get("photos") or [], grp)
 
     await message.reply("پست اولیه منتشر شد ✅ و برای ادمین ارسال گردید." if sent else
                         "پست اولیه منتشر شد ✅ اما ادمینی تنظیم/دریافت نشد.")
@@ -366,11 +364,9 @@ async def cb_publish(call: types.CallbackQuery):
     grp  = info.get("grp") or {}
     needs = info.get("needs") or {"price": False, "desc": True}
 
-    # از شماره/تاریخ اولیه استفاده کن تا ثابت بماند
     number = grp.get("number")
     jdate  = grp.get("jdate")
     if not number or not jdate:
-        # اگر به هر دلیلی نبود، مقدار جدید محاسبه می‌کنیم
         n, iso = next_daily_number()
         number, jdate = n, to_jalali(iso)
 
