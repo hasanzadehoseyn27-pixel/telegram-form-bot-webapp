@@ -418,4 +418,3 @@ async def cb_reject(call: types.CallbackQuery):
         await call.message.edit_text(call.message.text + "\n\n❌ رد شد")
     except Exception:
         pass
-

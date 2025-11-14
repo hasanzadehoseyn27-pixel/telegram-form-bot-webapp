@@ -9,7 +9,6 @@
       :root {
         --bg: #0f172a;
         --bg2: #0b1220;
-        --card: #101827;
         --line: rgba(255, 255, 255, 0.12);
         --txt: #e5e7eb;
         --muted: #9ca3af;
@@ -127,11 +126,6 @@
         background: var(--accent);
         color: #052e16;
       }
-      .ghost {
-        background: #0e1628;
-        color: var(--txt);
-        border: 1px solid var(--line);
-      }
       .dialog {
         position: fixed;
         inset: 0;
@@ -148,20 +142,12 @@
         width: 92vw;
         padding: 16px;
       }
-      .box h3 {
-        margin: 0 0 10px;
-      }
       .preview {
         white-space: pre-line;
         color: var(--muted);
         border: 1px dashed var(--line);
         border-radius: 12px;
         padding: 10px;
-      }
-      @media (max-width: 640px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
       }
     </style>
   </head>
@@ -225,9 +211,9 @@
               </select>
             </div>
             <div>
-              <label>
-                قیمت (تومان) <span id="price_hint" class="muted"></span>
-              </label>
+              <label
+                >قیمت (تومان) <span id="price_hint" class="muted"></span
+              ></label>
               <input
                 id="price"
                 inputmode="numeric"
@@ -246,9 +232,9 @@
           </label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
 
+          <!-- فقط دکمه‌ی ثبت فرم، تمام‌عرض -->
           <div class="row">
-            <button id="open_admin" class="ghost">پنل مدیریتی</button>
-            <button id="submit" class="primary">ثبت فرم</button>
+            <button id="submit" class="primary" style="flex: 1">ثبت فرم</button>
           </div>
         </div>
       </div>
@@ -260,7 +246,7 @@
         <h3>پیش‌نمایش</h3>
         <div id="preview" class="preview"></div>
         <div class="row" style="margin-top: 12px">
-          <button id="cancel" class="ghost">برگشت</button>
+          <button id="cancel">برگشت</button>
           <button id="confirm" class="primary">تایید و ارسال</button>
         </div>
       </div>
@@ -270,11 +256,9 @@
       const tg = window.Telegram.WebApp;
       tg.expand();
       tg.ready();
-
       const $ = (s) => document.querySelector(s);
       let category = "فروش";
 
-      // تب‌ها (قیمت همیشه فعال است؛ فقط دسته تغییر می‌کند)
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -282,37 +266,33 @@
             .forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
-          // قیمت را مخفی/غیرفعال نکن؛ فقط خطاها پاک شوند
+          $("#price").disabled = category === "فروش همکاری" ? false : false; // اینجا در همه حالت‌ها قابل ورود
+          $("#price_hint").textContent = "";
           clearErrors();
-          // نمایش متن قیمت را به‌روز کن
-          $("#price_hint").textContent = priceWords($("#price").value);
         };
       });
 
-      // تبدیل عدد به متن تومان تا سقف 100 میلیارد
       function priceWordsRaw(n) {
         if (!n) return "";
-        if (n > 100_000_000_000) n = 100_000_000_000; // سقف ۱۰۰ میلیارد
-        let parts = [];
+        if (n > 100_000_000_000) n = 100_000_000_000;
+        let p = [];
         if (n >= 1_000_000_000) {
           let b = Math.floor(n / 1_000_000_000);
-          parts.push(`${b} میلیارد`);
+          p.push(`${b} میلیارد`);
           n %= 1_000_000_000;
         }
         if (n >= 1_000_000) {
           let m = Math.floor(n / 1_000_000);
-          parts.push(`${m} میلیون`);
+          p.push(`${m} میلیون`);
           n %= 1_000_000;
         }
         if (n >= 1_000) {
           let k = Math.floor(n / 1_000);
-          parts.push(`${k} هزار`);
+          p.push(`${k} هزار`);
           n %= 1_000;
         }
-        if (n > 0) {
-          parts.push(`${n}`);
-        }
-        return parts.join(" و ") + " تومان";
+        if (n > 0) p.push(`${n}`);
+        return p.join(" و ") + " تومان";
       }
       function priceWords(v) {
         const n = parseInt((v || "").replace(/\D/g, ""), 10);
@@ -340,7 +320,7 @@
           city: $("#city").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(), // همیشه قابل ارسال
+          price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
         };
       }
@@ -364,8 +344,6 @@
           setErr("km", "کارکرد باید عددی حداکثر ۶ رقمی باشد.");
           ok = false;
         }
-
-        // در «فروش همکاری» قیمت اختیاری است؛ در سایر دسته‌ها الزامی
         if (p.category !== "فروش همکاری") {
           const num = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
           if (num < 1 || num > 100_000_000_000) {
@@ -379,7 +357,6 @@
         return ok;
       }
 
-      // پیش‌نمایش
       const dlg = $("#dlg");
       $("#submit").onclick = () => {
         const p = collect();
@@ -393,7 +370,7 @@
 شهر: ${p.city || "—"}
 گیربکس: ${p.gear || "—"}
 بیمه: ${p.insurance || "—"}
-قیمت: ${priceWordsRaw(n) || "—"}
+قیمت: ${p.category === "فروش همکاری" ? "—" : priceWordsRaw(n) || "—"}
 توضیحات:
 ${p.desc || "—"}`;
         dlg.style.display = "flex";
@@ -403,10 +380,6 @@ ${p.desc || "—"}`;
         tg.sendData(JSON.stringify(collect()));
         tg.close();
       };
-
-      // پنل مدیریتی (فعلاً پیام)
-      $("#open_admin").onclick = () =>
-        tg.sendData(JSON.stringify({ action: "open_admin" }));
     </script>
   </body>
 </html>
