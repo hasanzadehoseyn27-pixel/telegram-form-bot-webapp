@@ -13,10 +13,10 @@ from .storage import next_daily_number, list_admins, add_admin, remove_admin, is
 router = Router()
 
 # حافظه‌ی موقت
-PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, needs:{price,desc}}
-PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
-ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
-ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
+PENDING: dict[str, dict] = {}
+PHOTO_WAIT: dict[int, dict] = {}
+ADMIN_EDIT_WAIT: dict[int, dict] = {}
+ADMIN_WAIT_INPUT: dict[int, dict] = {}
 
 def to_jalali(date_iso: str) -> str:
     y, m, d = map(int, date_iso.split("-"))
@@ -28,8 +28,7 @@ def price_words(num: int) -> str:
         num = 100_000_000_000
     parts = []
     if num >= 1_000_000_000:
-        b = num // 1_000_000_000
-        parts.append(f"{b} میلیارد"); num %= 1_000_000_000
+        b = num // 1_000_000_000; parts.append(f"{b} میلیارد"); num %= 1_000_000_000
     if num >= 1_000_000:
         m = num // 1_000_000; parts.append(f"{m} میلیون"); num %= 1_000_000
     if num >= 1_000:
@@ -145,7 +144,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     year  = (payload.get("year") or "").strip()
     color = (payload.get("color") or "").strip()
     km    = (payload.get("km") or "").strip()
-    price_raw = (payload.get("price") or "").strip()  # هر سه دسته می‌توانند قیمت وارد کنند (فروش همکاری اختیاری)
+    price_raw = (payload.get("price") or "").strip()
     city  = (payload.get("city") or "").strip()
     ins   = (payload.get("insurance") or "").strip()
     gear  = (payload.get("gear") or "").strip()
@@ -237,7 +236,7 @@ async def publish_to_group(message: types.Message, form: dict, *, show_price: bo
         return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
 async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
-    """اگر ادمین تعریف نشده باشد، برای OWNER می‌فرستد."""
+    """اگر ادمین تعریف نشده باشد، برای OWNER ارسال می‌شود."""
     recipients = list_admins()
     if not recipients and SETTINGS.OWNER_ID:
         recipients = [SETTINGS.OWNER_ID]
@@ -386,4 +385,3 @@ async def cb_reject(call: types.CallbackQuery):
         await call.message.edit_text(call.message.text + "\n\n❌ رد شد")
     except Exception:
         pass
-

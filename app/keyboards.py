@@ -24,4 +24,3 @@ def admin_review_kb(token: str) -> InlineKeyboardMarkup:
     row2 = [InlineKeyboardButton(text="✅ اعمال روی پست گروه", callback_data=f"publish:{token}")]
     row3 = [InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{token}")]
     return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
-

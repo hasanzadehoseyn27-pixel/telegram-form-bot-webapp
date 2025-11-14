@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os
+import json
 from pathlib import Path
 from datetime import date
 
@@ -30,7 +30,7 @@ _ADMIN_SET: set[int] = set()
 _OWNER_ID: int = 0
 
 def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
-    """فقط یک بار از config صدا زده می‌شود تا ادمین‌ها مقداردهی شوند."""
+    """فقط یک بار از config فراخوانی می‌شود."""
     global _ADMIN_SET, _OWNER_ID
     _OWNER_ID = int(owner_id or 0)
 
@@ -72,4 +72,3 @@ def remove_admin(uid: int) -> bool:
 
 def is_admin(uid: int) -> bool:
     return int(uid) in _ADMIN_SET
-
