@@ -8,57 +8,75 @@
     <style>
       :root {
         --bg: #0f172a;
-        --txt: #e2e8f0;
-        --muted: #94a3b8;
-        --card: #111827;
+        --bg2: #0b1220;
+        --card: #101827;
+        --line: rgba(255, 255, 255, 0.12);
+        --txt: #e5e7eb;
+        --muted: #9ca3af;
         --accent: #22c55e;
+        --danger: #ef4444;
+      }
+      * {
+        box-sizing: border-box;
+        font-family: system-ui, Segoe UI, IRANSans, Arial;
       }
       body {
         margin: 0;
-        background: linear-gradient(135deg, #0b1220, var(--bg));
-        color: var(--txt);
-        font-family: system-ui, IRANSans, Segoe UI, Arial;
+        min-height: 100vh;
         display: grid;
         place-items: center;
-        min-height: 100vh;
+        background: linear-gradient(135deg, var(--bg2), var(--bg));
+        color: var(--txt);
         padding: 20px;
       }
       .wrap {
-        width: min(760px, 96vw);
+        width: min(780px, 96vw);
       }
       .card {
         background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid var(--line);
         backdrop-filter: blur(8px);
         border-radius: 18px;
         padding: 18px 16px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
       }
       h1 {
-        margin: 0 0 8px;
+        margin: 0 0 14px;
         font-size: 20px;
+        text-align: center;
       }
       .tabs {
         display: flex;
-        gap: 8px;
-        margin: 10px 0 14px;
+        gap: 10px;
+        margin: 6px 0 16px;
       }
       .tab {
         flex: 1;
         text-align: center;
         padding: 10px;
-        border-radius: 10px;
+        border-radius: 12px;
         background: #0e1628;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid var(--line);
         cursor: pointer;
       }
       .tab.active {
-        background: #18243c;
+        background: #16243d;
         border-color: var(--accent);
+      }
+      .section {
+        background: #0e1628;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
       }
       label {
         display: block;
-        margin: 10px 0 6px;
+        margin-bottom: 6px;
       }
       input,
       select,
@@ -66,23 +84,31 @@
         width: 100%;
         padding: 12px 14px;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        background: #0e1628;
+        border: 1px solid var(--line);
+        background: #0b1526;
         color: var(--txt);
         outline: none;
+        font-size: 15px;
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--accent);
       }
       textarea {
-        min-height: 90px;
+        min-height: 100px;
         resize: vertical;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
       }
       .muted {
         color: var(--muted);
         font-size: 12px;
+        margin-top: 4px;
+      }
+      .err {
+        color: var(--danger);
+        font-size: 12px;
+        margin-top: 6px;
+        min-height: 14px;
       }
       .row {
         display: flex;
@@ -94,38 +120,43 @@
         padding: 12px 16px;
         border: none;
         border-radius: 12px;
-        background: var(--accent);
-        color: #052e16;
         font-weight: 800;
         cursor: pointer;
+      }
+      .primary {
+        background: var(--accent);
+        color: #052e16;
       }
       .ghost {
         background: #0e1628;
         color: var(--txt);
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid var(--line);
       }
       .dialog {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.4);
+        background: rgba(0, 0, 0, 0.45);
         display: none;
         align-items: center;
         justify-content: center;
       }
-      .dialog .box {
+      .box {
         background: #0e1628;
-        border: 1px solid rgba(255, 255, 255, 0.12);
+        border: 1px solid var(--line);
         border-radius: 14px;
         max-width: 560px;
         width: 92vw;
         padding: 16px;
       }
-      .dialog h3 {
+      .box h3 {
         margin: 0 0 10px;
       }
-      .flex {
-        display: flex;
-        gap: 10px;
+      .preview {
+        white-space: pre-line;
+        color: var(--muted);
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+        padding: 10px;
       }
     </style>
   </head>
@@ -140,72 +171,80 @@
           <div class="tab" data-cat="خرید">خرید</div>
         </div>
 
-        <div class="grid">
-          <div>
-            <label>نام خودرو *</label>
-            <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
-            <div class="muted">عدد بیش از ۴ تا پشت‌سرهم مجاز نیست</div>
+        <div class="section">
+          <div class="grid">
+            <div>
+              <label>نام خودرو *</label>
+              <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
+              <div class="muted">عدد بیش از ۴ تا پشت‌سرهم مجاز نیست</div>
+              <div class="err" id="e_car"></div>
+            </div>
+            <div>
+              <label>سال ساخت *</label>
+              <input id="year" inputmode="numeric" placeholder="مثلاً: 1401" />
+              <div class="err" id="e_year"></div>
+            </div>
           </div>
-          <div>
-            <label>سال ساخت *</label>
-            <input id="year" inputmode="numeric" placeholder="مثلاً: 1401" />
-          </div>
-        </div>
 
-        <div class="grid">
-          <div>
-            <label>رنگ *</label>
-            <input id="color" placeholder="فقط حروف فارسی (حداکثر ۶)" />
+          <div class="grid">
+            <div>
+              <label>رنگ *</label>
+              <input id="color" placeholder="فقط حروف فارسی (حداکثر ۶)" />
+              <div class="err" id="e_color"></div>
+            </div>
+            <div>
+              <label>کارکرد (کیلومتر) *</label>
+              <input id="km" inputmode="numeric" placeholder="مثلاً: 45000" />
+              <div class="err" id="e_km"></div>
+            </div>
           </div>
-          <div>
-            <label>کارکرد (کیلومتر) *</label>
-            <input id="km" inputmode="numeric" placeholder="مثلاً: 45000" />
-          </div>
-        </div>
 
-        <div class="grid">
-          <div>
-            <label>شهر</label>
-            <input id="city" placeholder="مثلاً: تهران" />
+          <div class="grid">
+            <div>
+              <label>شهر</label>
+              <input id="city" placeholder="مثلاً: تهران" />
+            </div>
+            <div>
+              <label>مهلت بیمه</label>
+              <input id="insurance" placeholder="اختیاری" />
+            </div>
           </div>
-          <div>
-            <label>مهلت بیمه</label>
-            <input id="insurance" placeholder="اختیاری" />
-          </div>
-        </div>
 
-        <div class="grid">
-          <div>
-            <label>گیربکس</label>
-            <select id="gear">
-              <option value="">— خالی —</option>
-              <option>اتومات</option>
-              <option>دنده‌ای</option>
-            </select>
+          <div class="grid">
+            <div>
+              <label>گیربکس</label>
+              <select id="gear">
+                <option value="">— خالی —</option>
+                <option>اتومات</option>
+                <option>دنده‌ای</option>
+              </select>
+            </div>
+            <div>
+              <label
+                >قیمت (تومان) <span id="price_hint" class="muted"></span
+              ></label>
+              <input
+                id="price"
+                inputmode="numeric"
+                placeholder="حداکثر ۵ رقم"
+              />
+              <div class="err" id="e_price"></div>
+            </div>
           </div>
-          <div>
-            <label
-              >قیمت (تومان) <span id="price-hint" class="muted"></span
-            ></label>
-            <input id="price" inputmode="numeric" placeholder="حداکثر ۵ رقم" />
+
+          <label style="margin-top: 10px">
+            توضیحات
+            <span class="muted"
+              >(وضعیت بدنه - وضعیت شاسی‌ها - وضعیت موتور و فنی - وضعیت لاستیک‌ها
+              و ...)</span
+            >
+          </label>
+          <textarea id="desc" placeholder="دلخواه"></textarea>
+
+          <div class="row">
+            <button id="open_admin" class="ghost">پنل مدیریتی</button>
+            <button id="submit" class="primary">ثبت فرم</button>
           </div>
-        </div>
-
-        <label
-          >توضیحات
-          <span class="muted"
-            >(وضعیت بدنه - وضعیت شاسی‌ها - وضعیت موتور و فنی - وضعیت لاستیک‌ها و
-            ...)</span
-          ></label
-        >
-        <textarea id="desc" placeholder="دلخواه"></textarea>
-
-        <div class="row">
-          <button id="open-admin" class="ghost">پنل مدیریتی</button>
-          <button id="submit">ثبت فرم</button>
-        </div>
-        <div class="muted" style="margin-top: 8px">
-          پس از ثبت، در چت ربات تا ۵ عکس ارسال کنید و /done بزنید.
         </div>
       </div>
     </div>
@@ -214,10 +253,10 @@
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
-        <div id="preview" class="muted" style="white-space: pre-line"></div>
+        <div id="preview" class="preview"></div>
         <div class="row" style="margin-top: 12px">
-          <button class="ghost" id="cancel">برگشت</button>
-          <button id="confirm">تایید و ارسال</button>
+          <button id="cancel" class="ghost">برگشت</button>
+          <button id="confirm" class="primary">تایید و ارسال</button>
         </div>
       </div>
     </div>
@@ -230,77 +269,44 @@
       let category = "فروش";
 
       // تب‌ها
-      document.querySelectorAll(".tab").forEach((el) => {
-        el.onclick = () => {
+      document.querySelectorAll(".tab").forEach((t) => {
+        t.onclick = () => {
           document
             .querySelectorAll(".tab")
-            .forEach((t) => t.classList.remove("active"));
-          el.classList.add("active");
-          category = el.dataset.cat;
-          // در «فروش همکاری» قیمت غیرفعال می‌شود
+            .forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+          category = t.dataset.cat;
+          // در فروش همکاری قیمت غیرفعال
           $("#price").disabled = category === "فروش همکاری";
           $("#price").value = "";
-          $("#price-hint").textContent = "";
+          $("#price_hint").textContent = "";
+          clearErrors();
         };
       });
 
-      // فرمت زندهٔ قیمت
-      function priceToWords(v) {
-        const n = parseInt(v || "0", 10);
-        if (isNaN(n) || n <= 0) return "";
-        if (n >= 1000000000)
-          return Math.floor(n / 1000000000) + " میلیارد تومان";
-        if (n >= 1000000) return Math.floor(n / 1000000) + " میلیون تومان";
-        if (n >= 1000)
+      // نمایش عدد به تومان
+      function priceWords(v) {
+        const n = parseInt((v || "").replace(/\D/g, ""), 10);
+        if (!n) return "";
+        if (n >= 1_000_000_000)
+          return Math.floor(n / 1_000_000_000) + " میلیارد تومان";
+        if (n >= 1_000_000) return Math.floor(n / 1_000_000) + " میلیون تومان";
+        if (n >= 1_000)
           return (
             (Math.floor(n / 1000) * 1000).toLocaleString("fa-IR") + " تومان"
           );
         return n.toLocaleString("fa-IR") + " تومان";
       }
       $("#price").addEventListener("input", () => {
-        $("#price-hint").textContent = priceToWords(
-          $("#price").value.replace(/\D/g, "")
-        );
+        $("#price_hint").textContent = priceWords($("#price").value);
       });
 
-      // پیش‌نمایش
-      const dlg = $("#dlg");
-      $("#submit").onclick = () => {
-        const payload = collect();
-        const err = validate(payload);
-        if (err) {
-          alert(err);
-          return;
-        }
-        $("#preview").textContent = `دسته: ${payload.category}
-نام خودرو: ${payload.car}
-سال: ${payload.year}
-رنگ: ${payload.color}
-کارکرد: ${payload.km}
-شهر: ${payload.city || "—"}
-گیربکس: ${payload.gear || "—"}
-بیمه: ${payload.insurance || "—"}
-قیمت: ${
-          payload.category === "فروش همکاری"
-            ? "—"
-            : priceToWords(payload.price) || "—"
-        }
-توضیحات:
-${payload.desc || "—"}`;
-        dlg.style.display = "flex";
-      };
-      $("#cancel").onclick = () => (dlg.style.display = "none");
-      $("#confirm").onclick = () => {
-        const payload = collect();
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
-      };
-
-      // پنل مدیریتی
-      $("#open-admin").onclick = () => {
-        tg.sendData(JSON.stringify({ action: "open_admin" }));
-        alert("پنل مدیریتی به زودی…");
-      };
+      function setErr(id, msg) {
+        $("#e_" + id).textContent = msg || "";
+      }
+      function clearErrors() {
+        ["car", "year", "color", "km", "price"].forEach((k) => setErr(k, ""));
+      }
 
       function collect() {
         return {
@@ -312,28 +318,68 @@ ${payload.desc || "—"}`;
           city: $("#city").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").disabled
-            ? ""
-            : $("#price").value.replace(/\D/g, ""),
+          price: $("#price").disabled ? "" : $("#price").value.trim(),
           desc: $("#desc").value.trim(),
         };
       }
+
       function validate(p) {
-        if (!p.car || p.car.length > 10 || /\d{5,}/.test(p.car))
-          return "نام خودرو نامعتبر است.";
-        if (!/^\d{4}$/.test(p.year)) return "سال ساخت باید ۴ رقم باشد.";
-        if (!/^[آ-ی\s]{1,6}$/.test(p.color))
-          return "رنگ باید حروف فارسی (حداکثر ۶) باشد.";
-        if (!/^\d{1,5}$/.test(p.km))
-          return "کارکرد باید عددی حداکثر ۵ رقمی باشد.";
+        clearErrors();
+        let ok = true;
+        if (!p.car || p.car.length > 10 || /\d{5,}/.test(p.car)) {
+          setErr("car", "نام خودرو نامعتبر است.");
+          ok = false;
+        }
+        if (!/^\d{4}$/.test(p.year)) {
+          setErr("year", "سال ساخت باید ۴ رقم باشد.");
+          ok = false;
+        }
+        if (!/^[آ-ی\s]{1,6}$/.test(p.color)) {
+          setErr("color", "رنگ باید حروف فارسی (حداکثر ۶) باشد.");
+          ok = false;
+        }
+        if (!/^\d{1,5}$/.test(p.km)) {
+          setErr("km", "کارکرد باید عددی حداکثر ۵ رقمی باشد.");
+          ok = false;
+        }
         if (
           p.category !== "فروش همکاری" &&
           p.price &&
           !/^\d{1,5}$/.test(p.price)
-        )
-          return "قیمت باید عددی حداکثر ۵ رقمی باشد.";
-        return "";
+        ) {
+          setErr("price", "قیمت باید عددی حداکثر ۵ رقمی باشد.");
+          ok = false;
+        }
+        return ok;
       }
+
+      // پیش‌نمایش
+      const dlg = $("#dlg");
+      $("#submit").onclick = () => {
+        const p = collect();
+        if (!validate(p)) return;
+        $("#preview").textContent = `دسته: ${p.category}
+نام خودرو: ${p.car}
+سال: ${p.year}
+رنگ: ${p.color}
+کارکرد: ${p.km}
+شهر: ${p.city || "—"}
+گیربکس: ${p.gear || "—"}
+بیمه: ${p.insurance || "—"}
+قیمت: ${p.category === "فروش همکاری" ? "—" : priceWords(p.price) || "—"}
+توضیحات:
+${p.desc || "—"}`;
+        dlg.style.display = "flex";
+      };
+      $("#cancel").onclick = () => (dlg.style.display = "none");
+      $("#confirm").onclick = () => {
+        tg.sendData(JSON.stringify(collect()));
+        tg.close();
+      };
+
+      // پنل مدیریتی (فعلاً پیام)
+      $("#open_admin").onclick = () =>
+        tg.sendData(JSON.stringify({ action: "open_admin" }));
     </script>
   </body>
 </html>

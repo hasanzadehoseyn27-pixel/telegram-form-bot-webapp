@@ -1,6 +1,6 @@
 import json, os
 from zoneinfo import ZoneInfo
-from datetime import datetime, date
+from datetime import datetime
 
 STATE_PATH = os.path.join(os.path.dirname(__file__), "..", "data_state.json")
 
