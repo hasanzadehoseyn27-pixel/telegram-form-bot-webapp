@@ -1,13 +1,13 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 
-def start_keyboard(webapp_url: str) -> ReplyKeyboardMarkup:
-    row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+
+def start_keyboard(webapp_url: str, *, is_owner: bool, admin_url: str | None = None) -> ReplyKeyboardMarkup:
+    """اگر مالک است: دو دکمه (پنل مدیریتی + فرم). در غیر این صورت: فقط فرم."""
+    if is_owner and admin_url:
+        row = [
+            KeyboardButton(text="⚙️ پنل مدیریتی", web_app=WebAppInfo(url=admin_url)),
+            KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url)),
+        ]
+    else:
+        row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
-
-def admin_review_kb(token: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✏️ ویرایش قیمت", callback_data=f"edit_price:{token}")],
-        [InlineKeyboardButton(text="📝 ویرایش توضیحات", callback_data=f"edit_desc:{token}")],
-        [InlineKeyboardButton(text="✅ اعمال/تایید به پست گروه", callback_data=f"publish:{token}")],
-        [InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{token}")],
-    ])
