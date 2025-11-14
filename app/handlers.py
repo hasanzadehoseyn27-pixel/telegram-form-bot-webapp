@@ -22,9 +22,9 @@ def is_admin(uid: int) -> bool:
     return uid in SETTINGS.ADMIN_IDS or uid in EXTRA_ADMINS
 
 def to_jalali(date_iso: str) -> str:
+    # date_iso مثل "2025-11-14"
     y, m, d = map(int, date_iso.split("-"))
-    j = jdatetime.date.fromgregorian(day=d, month=m, year=m, day=d)
-    j = jdatetime.date.fromgregorian(day=d, month=m, year=y)
+    j = jdatetime.date.fromgregorian(year=y, month=m, day=d)
     return f"{j.year}/{j.month:02d}/{j.day:02d}"
 
 def price_words(num: int) -> str:
@@ -64,19 +64,18 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
     if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
 
-    # ← سطر جدید: قبل از تاریخ و شماره آگهی
+    # شماره تماس قبل از تاریخ/شماره آگهی
     parts.append("📞 شماره تماس: 09127475355 - کیوان")
 
     parts.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(parts)
-
 
 def admin_caption(form: dict, number: int, jdate: str) -> str:
     """کپشن مخصوص ادمین: ابتدا موارد ویرایشی، سپس خلاصه همان‌جا."""
     lines = ["🧪 <b>موارد نیازمند ویرایش/تایید:</b>"]
     # توضیحات همیشه قابل ویرایش
     lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
-    # قیمت فقط در فروش همکاری لازم است
+    # قیمت فقط در فروش همکاری لازم است (اگر کاربر داده باشد همان نمایش داده می‌شود)
     if form.get("category") == "فروش همکاری":
         lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
     lines.append("—" * 10)
@@ -247,7 +246,6 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
     cap = admin_caption(form, grp.get("number"), grp.get("jdate"))
     ok = 0
     for admin_id in admins:
-        # اگر عکس هست، مدیاگروه با کپشن کامل
         if photos:
             mg = MediaGroupBuilder()
             mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
@@ -262,7 +260,6 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
                 await bot.send_message(admin_id, cap, parse_mode="HTML")
             except Exception:
                 pass
-        # دکمه‌های ویرایش/اعمال در پیام جدا (محدودیت تلگرام)
         try:
             await bot.send_message(admin_id, "ویرایش/اعمال:", reply_markup=admin_review_kb(token))
             ok += 1
@@ -294,7 +291,7 @@ async def on_done(message: types.Message):
     PENDING[token]["grp"] = grp
     PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
 
-    # ارسال برای ادمین‌ها: همان کپشن زیر عکس اول + دکمه‌ها
+    # ارسال برای ادمین‌ها
     sent = await send_review_to_admins(message.bot, form, token, form.get("photos") or [], grp)
 
     await message.reply("پست اولیه منتشر شد ✅ و برای ادمین ارسال گردید." if sent else
