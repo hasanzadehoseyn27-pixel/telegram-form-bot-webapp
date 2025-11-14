@@ -3,119 +3,337 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>فرم ارسال نام</title>
+    <title>فرم آگهی بانک خودرو همکاران</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
-        --bg: var(--tg-theme-bg-color, #0f172a);
-        --txt: var(--tg-theme-text-color, #e2e8f0);
-        --btn: var(--tg-theme-button-color, #22c55e);
-        --btn-txt: var(--tg-theme-button-text-color, #fff);
-        --hint: var(--tg-theme-hint-color, #94a3b8);
-        --sec: var(--tg-theme-secondary-bg-color, #111827);
-      }
-      * {
-        box-sizing: border-box;
-        font-family: system-ui, "Segoe UI", Roboto, IRANSans, Arial;
+        --bg: #0f172a;
+        --txt: #e2e8f0;
+        --muted: #94a3b8;
+        --card: #111827;
+        --accent: #22c55e;
       }
       body {
         margin: 0;
-        background: linear-gradient(135deg, var(--bg), #0b1220);
+        background: linear-gradient(135deg, #0b1220, var(--bg));
         color: var(--txt);
-        min-height: 100vh;
+        font-family: system-ui, IRANSans, Segoe UI, Arial;
         display: grid;
         place-items: center;
-        padding: 24px;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .wrap {
+        width: min(760px, 96vw);
       }
       .card {
-        width: min(520px, 92vw);
         background: rgba(255, 255, 255, 0.06);
-        backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 20px;
-        padding: 22px 20px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(8px);
+        border-radius: 18px;
+        padding: 18px 16px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
       }
-      .title {
+      h1 {
+        margin: 0 0 8px;
         font-size: 20px;
-        font-weight: 700;
-        margin: 0 0 10px;
       }
-      .subtitle {
-        color: var(--hint);
-        margin-bottom: 22px;
-        font-size: 14px;
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin: 10px 0 14px;
+      }
+      .tab {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        border-radius: 10px;
+        background: #0e1628;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        cursor: pointer;
+      }
+      .tab.active {
+        background: #18243c;
+        border-color: var(--accent);
       }
       label {
         display: block;
-        margin-bottom: 8px;
-        font-size: 14px;
+        margin: 10px 0 6px;
       }
-      input {
+      input,
+      select,
+      textarea {
         width: 100%;
         padding: 12px 14px;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        background: var(--sec);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #0e1628;
         color: var(--txt);
         outline: none;
-        font-size: 15px;
       }
-      input:focus {
-        border-color: var(--btn);
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
       }
       button {
-        width: 100%;
-        margin-top: 18px;
+        flex: 1;
         padding: 12px 16px;
         border: none;
         border-radius: 12px;
-        background: var(--btn);
-        color: var(--btn-txt);
-        font-weight: 700;
-        font-size: 15px;
+        background: var(--accent);
+        color: #052e16;
+        font-weight: 800;
         cursor: pointer;
       }
-      .hint {
-        font-size: 12px;
-        color: var(--hint);
-        margin-top: 10px;
+      .ghost {
+        background: #0e1628;
+        color: var(--txt);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .dialog {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .dialog .box {
+        background: #0e1628;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        max-width: 560px;
+        width: 92vw;
+        padding: 16px;
+      }
+      .dialog h3 {
+        margin: 0 0 10px;
+      }
+      .flex {
+        display: flex;
+        gap: 10px;
       }
     </style>
   </head>
   <body>
-    <main class="card">
-      <h1 class="title">فرم ارسال نام</h1>
-      <p class="subtitle">نام خود را وارد کنید و دکمهٔ ارسال را بزنید.</p>
-      <form id="form">
-        <label for="name">نام</label>
-        <input
-          id="name"
-          name="name"
-          type="text"
-          placeholder="مثلاً: علی رضایی"
-          required
-        />
-        <button type="submit">ارسال به ربات</button>
-        <div class="hint">بعد از ارسال، این پنجره بسته می‌شود.</div>
-      </form>
-    </main>
+    <div class="wrap">
+      <div class="card">
+        <h1>≪ فرم آگهی بانک خودرو همکاران ≫</h1>
+
+        <div class="tabs">
+          <div class="tab active" data-cat="فروش">فروش</div>
+          <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
+          <div class="tab" data-cat="خرید">خرید</div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>نام خودرو *</label>
+            <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
+            <div class="muted">عدد بیش از ۴ تا پشت‌سرهم مجاز نیست</div>
+          </div>
+          <div>
+            <label>سال ساخت *</label>
+            <input id="year" inputmode="numeric" placeholder="مثلاً: 1401" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>رنگ *</label>
+            <input id="color" placeholder="فقط حروف فارسی (حداکثر ۶)" />
+          </div>
+          <div>
+            <label>کارکرد (کیلومتر) *</label>
+            <input id="km" inputmode="numeric" placeholder="مثلاً: 45000" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>شهر</label>
+            <input id="city" placeholder="مثلاً: تهران" />
+          </div>
+          <div>
+            <label>مهلت بیمه</label>
+            <input id="insurance" placeholder="اختیاری" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label>گیربکس</label>
+            <select id="gear">
+              <option value="">— خالی —</option>
+              <option>اتومات</option>
+              <option>دنده‌ای</option>
+            </select>
+          </div>
+          <div>
+            <label
+              >قیمت (تومان) <span id="price-hint" class="muted"></span
+            ></label>
+            <input id="price" inputmode="numeric" placeholder="حداکثر ۵ رقم" />
+          </div>
+        </div>
+
+        <label
+          >توضیحات
+          <span class="muted"
+            >(وضعیت بدنه - وضعیت شاسی‌ها - وضعیت موتور و فنی - وضعیت لاستیک‌ها و
+            ...)</span
+          ></label
+        >
+        <textarea id="desc" placeholder="دلخواه"></textarea>
+
+        <div class="row">
+          <button id="open-admin" class="ghost">پنل مدیریتی</button>
+          <button id="submit">ثبت فرم</button>
+        </div>
+        <div class="muted" style="margin-top: 8px">
+          پس از ثبت، در چت ربات تا ۵ عکس ارسال کنید و /done بزنید.
+        </div>
+      </div>
+    </div>
+
+    <!-- پیش‌نمایش -->
+    <div id="dlg" class="dialog">
+      <div class="box">
+        <h3>پیش‌نمایش</h3>
+        <div id="preview" class="muted" style="white-space: pre-line"></div>
+        <div class="row" style="margin-top: 12px">
+          <button class="ghost" id="cancel">برگشت</button>
+          <button id="confirm">تایید و ارسال</button>
+        </div>
+      </div>
+    </div>
 
     <script>
       const tg = window.Telegram.WebApp;
       tg.expand();
       tg.ready();
+      const $ = (s) => document.querySelector(s);
+      let category = "فروش";
 
-      document.getElementById("form").addEventListener("submit", (e) => {
-        e.preventDefault();
-        const name = document.getElementById("name").value.trim();
-        if (!name) {
-          alert("لطفاً نام را وارد کنید.");
+      // تب‌ها
+      document.querySelectorAll(".tab").forEach((el) => {
+        el.onclick = () => {
+          document
+            .querySelectorAll(".tab")
+            .forEach((t) => t.classList.remove("active"));
+          el.classList.add("active");
+          category = el.dataset.cat;
+          // در «فروش همکاری» قیمت غیرفعال می‌شود
+          $("#price").disabled = category === "فروش همکاری";
+          $("#price").value = "";
+          $("#price-hint").textContent = "";
+        };
+      });
+
+      // فرمت زندهٔ قیمت
+      function priceToWords(v) {
+        const n = parseInt(v || "0", 10);
+        if (isNaN(n) || n <= 0) return "";
+        if (n >= 1000000000)
+          return Math.floor(n / 1000000000) + " میلیارد تومان";
+        if (n >= 1000000) return Math.floor(n / 1000000) + " میلیون تومان";
+        if (n >= 1000)
+          return (
+            (Math.floor(n / 1000) * 1000).toLocaleString("fa-IR") + " تومان"
+          );
+        return n.toLocaleString("fa-IR") + " تومان";
+      }
+      $("#price").addEventListener("input", () => {
+        $("#price-hint").textContent = priceToWords(
+          $("#price").value.replace(/\D/g, "")
+        );
+      });
+
+      // پیش‌نمایش
+      const dlg = $("#dlg");
+      $("#submit").onclick = () => {
+        const payload = collect();
+        const err = validate(payload);
+        if (err) {
+          alert(err);
           return;
         }
-        tg.sendData(JSON.stringify({ name }));
+        $("#preview").textContent = `دسته: ${payload.category}
+نام خودرو: ${payload.car}
+سال: ${payload.year}
+رنگ: ${payload.color}
+کارکرد: ${payload.km}
+شهر: ${payload.city || "—"}
+گیربکس: ${payload.gear || "—"}
+بیمه: ${payload.insurance || "—"}
+قیمت: ${
+          payload.category === "فروش همکاری"
+            ? "—"
+            : priceToWords(payload.price) || "—"
+        }
+توضیحات:
+${payload.desc || "—"}`;
+        dlg.style.display = "flex";
+      };
+      $("#cancel").onclick = () => (dlg.style.display = "none");
+      $("#confirm").onclick = () => {
+        const payload = collect();
+        tg.sendData(JSON.stringify(payload));
         tg.close();
-      });
+      };
+
+      // پنل مدیریتی
+      $("#open-admin").onclick = () => {
+        tg.sendData(JSON.stringify({ action: "open_admin" }));
+        alert("پنل مدیریتی به زودی…");
+      };
+
+      function collect() {
+        return {
+          category,
+          car: $("#car").value.trim(),
+          year: $("#year").value.trim(),
+          color: $("#color").value.trim(),
+          km: $("#km").value.trim(),
+          city: $("#city").value.trim(),
+          insurance: $("#insurance").value.trim(),
+          gear: $("#gear").value,
+          price: $("#price").disabled
+            ? ""
+            : $("#price").value.replace(/\D/g, ""),
+          desc: $("#desc").value.trim(),
+        };
+      }
+      function validate(p) {
+        if (!p.car || p.car.length > 10 || /\d{5,}/.test(p.car))
+          return "نام خودرو نامعتبر است.";
+        if (!/^\d{4}$/.test(p.year)) return "سال ساخت باید ۴ رقم باشد.";
+        if (!/^[آ-ی\s]{1,6}$/.test(p.color))
+          return "رنگ باید حروف فارسی (حداکثر ۶) باشد.";
+        if (!/^\d{1,5}$/.test(p.km))
+          return "کارکرد باید عددی حداکثر ۵ رقمی باشد.";
+        if (
+          p.category !== "فروش همکاری" &&
+          p.price &&
+          !/^\d{1,5}$/.test(p.price)
+        )
+          return "قیمت باید عددی حداکثر ۵ رقمی باشد.";
+        return "";
+      }
     </script>
   </body>
 </html>
