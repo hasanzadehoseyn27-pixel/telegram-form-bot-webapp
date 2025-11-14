@@ -7,7 +7,14 @@ def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
     if is_admin:
         row.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
-    return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
+    # persistent تا تلگرام قطعاً کیبورد جدید را نشان بدهد
+    return ReplyKeyboardMarkup(
+        keyboard=[row],
+        resize_keyboard=True,
+        is_persistent=True,
+        one_time_keyboard=False,
+        input_field_placeholder="پیام خود را بنویسید…",
+    )
 
 def admin_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[

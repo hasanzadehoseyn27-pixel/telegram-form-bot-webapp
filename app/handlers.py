@@ -5,6 +5,7 @@ import jdatetime
 from aiogram import Router, F, html, types, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.utils.media_group import MediaGroupBuilder
+from aiogram.types import ReplyKeyboardRemove
 
 from .config import SETTINGS
 from .keyboards import start_keyboard, admin_menu_kb, admin_review_kb
@@ -13,10 +14,10 @@ from .storage import next_daily_number, list_admins, add_admin, remove_admin, is
 router = Router()
 
 # حافظه‌ی موقت
-PENDING: dict[str, dict] = {}
-PHOTO_WAIT: dict[int, dict] = {}
-ADMIN_EDIT_WAIT: dict[int, dict] = {}
-ADMIN_WAIT_INPUT: dict[int, dict] = {}
+PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, needs:{price,desc}}
+PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
+ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
+ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
 
 def to_jalali(date_iso: str) -> str:
     y, m, d = map(int, date_iso.split("-"))
@@ -71,13 +72,24 @@ def admin_caption(form: dict, number: int, jdate: str) -> str:
     lines.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(lines)
 
-# ---------- شروع و کیبورد ----------
+# ---------- شروع و منو ----------
 @router.message(CommandStart())
 async def on_start(message: types.Message):
     if not SETTINGS.WEBAPP_URL:
         await message.answer("WEBAPP_URL در .env تنظیم نشده است."); return
+    # اول کیبورد قبلی را حذف کن تا تلگرام مجبور به رفرش شود
+    try:
+        await message.answer("↻ به‌روزرسانی منو…", reply_markup=ReplyKeyboardRemove())
+    except Exception:
+        pass
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
+
+# هر وقت خواستید منو را دستی رفرش کنید
+@router.message(Command("menu"))
+async def menu(message: types.Message):
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
+    await message.answer("منو به‌روزرسانی شد.", reply_markup=kb)
 
 @router.message(F.text == "⚙️ پنل مدیریتی")
 async def open_admin_menu(message: types.Message):
@@ -165,11 +177,11 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
 
     if cat == "فروش همکاری":
         if num > 0:
-            if num > 100_000_000_000: num = 100_000_000_000
+            if num > 100_000_000: num = 100_000_000
             price_num = num
             price_words_str = price_words(num)
     else:
-        if num < 1 or num > 100_000_000_000:
+        if num < 1 or num > 100_000_000:
             return False, "قیمت باید عددی معتبر تا سقف ۱۰۰ میلیارد تومان باشد.", None
         price_num = num
         price_words_str = price_words(num)
