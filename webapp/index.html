@@ -226,7 +226,7 @@
               <input
                 id="price"
                 inputmode="numeric"
-                placeholder="حداکثر ۵ رقم"
+                placeholder="تا سقف ۱۰۰ میلیارد تومان"
               />
               <div class="err" id="e_price"></div>
             </div>
@@ -284,18 +284,35 @@
         };
       });
 
-      // نمایش عدد به تومان
+      // تبدیل عدد به متن تومان تا سقف 100 میلیارد
+      function priceWordsRaw(n) {
+        if (!n) return "";
+        if (n > 100_000_000_000) n = 100_000_000_000; // سقف ۱۰۰ میلیارد
+        let parts = [];
+        if (n >= 1_000_000_000) {
+          let b = Math.floor(n / 1_000_000_000);
+          parts.push(`${b} میلیارد`);
+          n %= 1_000_000_000;
+        }
+        if (n >= 1_000_000) {
+          let m = Math.floor(n / 1_000_000);
+          parts.push(`${m} میلیون`);
+          n %= 1_000_000;
+        }
+        if (n >= 1_000) {
+          let k = Math.floor(n / 1_000);
+          parts.push(`${k} هزار`);
+          n %= 1_000;
+        }
+        if (n > 0) {
+          parts.push(`${n}`);
+        }
+        return parts.join(" و ") + " تومان";
+      }
       function priceWords(v) {
         const n = parseInt((v || "").replace(/\D/g, ""), 10);
         if (!n) return "";
-        if (n >= 1_000_000_000)
-          return Math.floor(n / 1_000_000_000) + " میلیارد تومان";
-        if (n >= 1_000_000) return Math.floor(n / 1_000_000) + " میلیون تومان";
-        if (n >= 1_000)
-          return (
-            (Math.floor(n / 1000) * 1000).toLocaleString("fa-IR") + " تومان"
-          );
-        return n.toLocaleString("fa-IR") + " تومان";
+        return priceWordsRaw(n);
       }
       $("#price").addEventListener("input", () => {
         $("#price_hint").textContent = priceWords($("#price").value);
@@ -338,17 +355,20 @@
           setErr("color", "رنگ باید حروف فارسی (حداکثر ۶) باشد.");
           ok = false;
         }
-        if (!/^\d{1,5}$/.test(p.km)) {
-          setErr("km", "کارکرد باید عددی حداکثر ۵ رقمی باشد.");
+        if (!/^\d{1,6}$/.test(p.km)) {
+          setErr("km", "کارکرد باید عددی حداکثر ۶ رقمی باشد.");
           ok = false;
         }
-        if (
-          p.category !== "فروش همکاری" &&
-          p.price &&
-          !/^\d{1,5}$/.test(p.price)
-        ) {
-          setErr("price", "قیمت باید عددی حداکثر ۵ رقمی باشد.");
-          ok = false;
+
+        if (p.category !== "فروش همکاری") {
+          const num = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
+          if (num < 1 || num > 100_000_000_000) {
+            setErr(
+              "price",
+              "قیمت باید عددی معتبر تا سقف ۱۰۰ میلیارد تومان باشد."
+            );
+            ok = false;
+          }
         }
         return ok;
       }
@@ -358,6 +378,7 @@
       $("#submit").onclick = () => {
         const p = collect();
         if (!validate(p)) return;
+        const n = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
         $("#preview").textContent = `دسته: ${p.category}
 نام خودرو: ${p.car}
 سال: ${p.year}
@@ -366,7 +387,7 @@
 شهر: ${p.city || "—"}
 گیربکس: ${p.gear || "—"}
 بیمه: ${p.insurance || "—"}
-قیمت: ${p.category === "فروش همکاری" ? "—" : priceWords(p.price) || "—"}
+قیمت: ${p.category === "فروش همکاری" ? "—" : priceWordsRaw(n) || "—"}
 توضیحات:
 ${p.desc || "—"}`;
         dlg.style.display = "flex";
