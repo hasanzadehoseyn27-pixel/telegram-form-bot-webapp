@@ -17,11 +17,10 @@ from .storage import (
 
 router = Router()
 
-# حافظه‌ی موقت فرایند
-PENDING: dict[str, dict] = {}            # token -> {form, user_id, grp:{...}, needs:{price,desc}}
-PHOTO_WAIT: dict[int, dict] = {}         # user_id -> {token, remain}
-ADMIN_EDIT_WAIT: dict[int, dict] = {}    # admin_id -> {token, field}
-OWNER_WAIT: dict[int, dict] = {}         # owner_id -> {"mode": "add"|"rm"}
+PENDING: dict[str, dict] = {}
+PHOTO_WAIT: dict[int, dict] = {}
+ADMIN_EDIT_WAIT: dict[int, dict] = {}
+OWNER_WAIT: dict[int, dict] = {}
 
 def is_admin(uid: int) -> bool:
     return store_is_admin(uid)
@@ -54,12 +53,12 @@ def price_words(num: int) -> str:
 def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool) -> str:
     parts = [
         "🚗 <b>آگهی جدید</b>",
-        f"🏷️ <b>نام خودرو:</b> {html.quote(form['car'])}",
+        f"🏷 <b>نام خودرو:</b> {html.quote(form['car'])}",
         f"📅 <b>سال ساخت:</b> {html.quote(form['year'])}",
         f"🎨 <b>رنگ:</b> {html.quote(form['color'])}",
         f"📍 <b>شهر:</b> {html.quote(form.get('city') or '—')}",
         f"⚙️ <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
-        f"🛡️ <b>مهلت بیمه:</b> {html.quote(form.get('insurance') or '—')}",
+        f"🛡 <b>مهلت بیمه:</b> {html.quote(form.get('insurance') or '—')}",
         f"📈 <b>کارکرد:</b> {html.quote(form['km'])} کیلومتر",
     ]
     if show_price and form.get("price_words"):
@@ -68,7 +67,7 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
 
     parts.append("📞 شماره تماس: 09127475355 - کیوان")
-    parts.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
+    parts.append(f"\n🗓 <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(parts)
 
 def admin_caption(form: dict, number: int, jdate: str) -> str:
@@ -82,7 +81,7 @@ def admin_caption(form: dict, number: int, jdate: str) -> str:
     lines.append(f"نام خودرو: {html.quote(form['car'])}")
     lines.append(f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km")
     lines.append(f"شهر/گیربکس/بیمه: {html.quote(form.get('city') or '—')} / {html.quote(form.get('gear') or '—')} / {html.quote(form.get('insurance') or '—')}")
-    lines.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
+    lines.append(f"\n🗓 <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(lines)
 
 # ---------- /start ----------
@@ -102,7 +101,8 @@ async def on_start(message: types.Message):
             reply_markup=start_keyboard(SETTINGS.WEBAPP_URL),
         )
 
-# ---------- ابزار ادمین اصلی ----------
+# ---------- پنل ادمین اصلی ----------
+from .keyboards import ADMIN_BTN_TEXT
 @router.message(F.text == ADMIN_BTN_TEXT)
 @router.message(Command(commands=["admin"]))
 async def open_admin_panel(message: types.Message):
@@ -118,7 +118,7 @@ async def open_admin_panel(message: types.Message):
     ])
     await message.answer(
         "«پنل مدیریتی ادمین‌ها»\n"
-        "➕ افزودن/➖ حذف با وارد کردن User ID کاربر انجام می‌شود.",
+        "➕ افزودن/➖ حذف با User ID انجام می‌شود.",
         reply_markup=kb
     )
 
@@ -161,7 +161,7 @@ async def owner_id_ops(message: types.Message):
         await message.reply("✅ ادمین حذف شد." if ok else "⚠️ حذف نشد (ممکن است OWNER یا نبود).")
     OWNER_WAIT.pop(message.from_user.id, None)
 
-# ---------- ابزارهای کمکی ----------
+# ---------- کمک‌ها ----------
 @router.message(Command(commands=["id", "ids"]))
 async def cmd_id(message: types.Message):
     await message.answer(f"user_id: {message.from_user.id}\nchat_id: {message.chat.id}\nchat_type: {message.chat.type}")
@@ -172,7 +172,25 @@ async def cmd_admins(message: types.Message):
     txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, ids)) if ids else "— خالی —")
     await message.answer(txt)
 
-# ---------- اعتبارسنجی و دریافت وب‌اپ ----------
+@router.message(Command(commands=["admintest"]))
+async def admintest(message: types.Message):
+    # پیام تست برای همه ادمین‌ها (با fallback)
+    admins = list_admins()
+    if not admins:
+        env_admins = list(SETTINGS.ADMIN_IDS)
+        if SETTINGS.OWNER_ID:
+            env_admins.append(SETTINGS.OWNER_ID)
+        admins = sorted(set(env_admins))
+    sent = 0
+    for aid in admins:
+        try:
+            await message.bot.send_message(aid, "پیام تست ادمین ✅")
+            sent += 1
+        except Exception:
+            pass
+    await message.answer(f"ارسال شد به {sent} ادمین از {len(admins)}")
+
+# ---------- اعتبارسنجی وب‌اپ ----------
 def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     if payload.get("action") == "open_admin":
         return False, "admin_open", None
@@ -259,7 +277,7 @@ async def on_photo(message: types.Message):
     sess["remain"] -= 1
     await message.reply(f"عکس ثبت شد. باقی‌مانده: {sess['remain']}")
 
-# ---------- انتشار ----------
+# ---------- انتشار به گروه ----------
 async def publish_to_group(message: types.Message, form: dict, *, show_price: bool, show_desc: bool):
     number, iso = next_daily_number()
     j = to_jalali(iso)
@@ -277,10 +295,18 @@ async def publish_to_group(message: types.Message, form: dict, *, show_price: bo
         msg = await message.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
         return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
+# فیکس اصلی: اگر استوریج خالی بود، به OWNER و ADMIN_IDS .env هم ارسال کن
 async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
     admins = list_admins()
     if not admins:
+        env_admins = list(SETTINGS.ADMIN_IDS)
+        if SETTINGS.OWNER_ID:
+            env_admins.append(SETTINGS.OWNER_ID)
+        admins = sorted(set(env_admins))
+
+    if not admins:
         return 0
+
     cap = admin_caption(form, grp.get("number"), grp.get("jdate"))
     ok = 0
     for admin_id in admins:
@@ -328,7 +354,6 @@ async def on_done(message: types.Message):
     sent = await send_review_to_admins(message.bot, form, token, form.get("photos") or [], grp)
     await message.reply("پست اولیه منتشر شد ✅ و برای ادمین ارسال گردید." if sent else
                         "پست اولیه منتشر شد ✅ اما ادمینی تنظیم/دریافت نشد.")
-
 # ---------- ویرایش ادمین ----------
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
@@ -429,3 +454,4 @@ async def cb_reject(call: types.CallbackQuery):
         await call.message.edit_text(call.message.text + "\n\n❌ رد شد")
     except Exception:
         pass
+

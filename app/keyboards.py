@@ -3,7 +3,7 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton
 )
 
-ADMIN_BTN_TEXT = "🛠 پنل مدیریتی"
+ADMIN_BTN_TEXT = "⚙️ پنل مدیریتی"
 
 def start_keyboard(webapp_url: str) -> ReplyKeyboardMarkup:
     row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
@@ -11,8 +11,8 @@ def start_keyboard(webapp_url: str) -> ReplyKeyboardMarkup:
 
 def start_keyboard_owner(webapp_url: str) -> ReplyKeyboardMarkup:
     row = [
-        KeyboardButton(text=ADMIN_BTN_TEXT),
         KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url)),
+        KeyboardButton(text=ADMIN_BTN_TEXT),
     ]
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
