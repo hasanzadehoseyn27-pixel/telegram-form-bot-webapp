@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>فرم زیبا</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root {
+        --bg: var(--tg-theme-bg-color, #0e1117);
+        --txt: var(--tg-theme-text-color, #e6edf3);
+        --btn: var(--tg-theme-button-color, #2ea043);
+        --btn-txt: var(--tg-theme-button-text-color, #fff);
+        --hint: var(--tg-theme-hint-color, #8b949e);
+        --sec: var(--tg-theme-secondary-bg-color, #161b22);
+      }
+      * {
+        box-sizing: border-box;
+        font-family: system-ui, "Segoe UI", Roboto;
+      }
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, var(--bg), #1d232f);
+        color: var(--txt);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: min(520px, 92vw);
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        padding: 22px 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+      }
+      .title {
+        font-size: 20px;
+        font-weight: 700;
+        margin: 0 0 10px;
+      }
+      .subtitle {
+        color: var(--hint);
+        margin-bottom: 22px;
+        font-size: 14px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+      }
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: var(--sec);
+        color: var(--txt);
+        outline: none;
+        font-size: 15px;
+      }
+      input:focus {
+        border-color: var(--btn);
+      }
+      button {
+        width: 100%;
+        margin-top: 18px;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        background: var(--btn);
+        color: var(--btn-txt);
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--hint);
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1 class="title">فرم ارسال نام</h1>
+      <p class="subtitle">نام خود را وارد کنید و دکمهٔ ارسال را بزنید.</p>
+      <form id="form">
+        <label for="name">نام</label>
+        <input
+          id="name"
+          name="name"
+          type="text"
+          placeholder="مثلاً: علی رضایی"
+          required
+        />
+        <button type="submit">ارسال به ربات</button>
+        <div class="hint">بعد از ارسال، این پنجره بسته می‌شود.</div>
+      </form>
+    </main>
+
+    <script>
+      const tg = window.Telegram.WebApp;
+      tg.expand();
+      tg.ready();
+
+      document.getElementById("form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("name").value.trim();
+        if (!name) {
+          alert("لطفاً نام را وارد کنید.");
+          return;
+        }
+        tg.sendData(JSON.stringify({ name }));
+        tg.close(); // بستن WebApp بعد از ارسال
+      });
+    </script>
+  </body>
+</html>
