@@ -23,6 +23,6 @@ def build_bot_and_dispatcher():
     if not SETTINGS.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN در .env تنظیم نشده است.")
     session = AiohttpSession(proxy=SETTINGS.PROXY_URL) if SETTINGS.PROXY_URL else None
-    bot = Bot(SETTINGS.BOT_TOKEN, session=session)  # هیچ parse_mode اینجا ندیم
+    bot = Bot(SETTINGS.BOT_TOKEN, session=session)
     dp = Dispatcher()
     return bot, dp
