@@ -158,6 +158,11 @@
         border-radius: 12px;
         padding: 10px;
       }
+      @media (max-width: 640px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -220,9 +225,9 @@
               </select>
             </div>
             <div>
-              <label
-                >قیمت (تومان) <span id="price_hint" class="muted"></span
-              ></label>
+              <label>
+                قیمت (تومان) <span id="price_hint" class="muted"></span>
+              </label>
               <input
                 id="price"
                 inputmode="numeric"
@@ -265,10 +270,11 @@
       const tg = window.Telegram.WebApp;
       tg.expand();
       tg.ready();
+
       const $ = (s) => document.querySelector(s);
       let category = "فروش";
 
-      // تب‌ها
+      // تب‌ها (قیمت همیشه فعال است؛ فقط دسته تغییر می‌کند)
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -276,11 +282,10 @@
             .forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
-          // در فروش همکاری قیمت غیرفعال
-          $("#price").disabled = category === "فروش همکاری";
-          $("#price").value = "";
-          $("#price_hint").textContent = "";
+          // قیمت را مخفی/غیرفعال نکن؛ فقط خطاها پاک شوند
           clearErrors();
+          // نمایش متن قیمت را به‌روز کن
+          $("#price_hint").textContent = priceWords($("#price").value);
         };
       });
 
@@ -335,7 +340,7 @@
           city: $("#city").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").disabled ? "" : $("#price").value.trim(),
+          price: $("#price").value.trim(), // همیشه قابل ارسال
           desc: $("#desc").value.trim(),
         };
       }
@@ -360,6 +365,7 @@
           ok = false;
         }
 
+        // در «فروش همکاری» قیمت اختیاری است؛ در سایر دسته‌ها الزامی
         if (p.category !== "فروش همکاری") {
           const num = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
           if (num < 1 || num > 100_000_000_000) {
@@ -387,7 +393,7 @@
 شهر: ${p.city || "—"}
 گیربکس: ${p.gear || "—"}
 بیمه: ${p.insurance || "—"}
-قیمت: ${p.category === "فروش همکاری" ? "—" : priceWordsRaw(n) || "—"}
+قیمت: ${priceWordsRaw(n) || "—"}
 توضیحات:
 ${p.desc || "—"}`;
         dlg.style.display = "flex";
