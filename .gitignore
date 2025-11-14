@@ -1,8 +1,0 @@
-# venv
-.venv/
-# env vars
-.env
-# __pycache__
-__pycache__/
-# VSCode settings
-.vscode/
