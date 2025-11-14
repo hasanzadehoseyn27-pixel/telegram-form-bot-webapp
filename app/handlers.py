@@ -2,32 +2,24 @@ import json, re
 from uuid import uuid4
 import jdatetime
 
-from aiogram import Router, F, html, types
+from aiogram import Router, F, html, types, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from .config import SETTINGS
-from .keyboards import start_keyboard, start_keyboard_owner, admin_review_kb
-from .storage import (
-    next_daily_number, bootstrap_admins, is_admin, list_admins, add_admin, remove_admin
-)
+from .keyboards import start_keyboard, admin_menu_kb, admin_review_kb
+from .storage import next_daily_number, list_admins, add_admin, remove_admin, is_admin
 
 router = Router()
 
-PENDING: dict[str, dict] = {}         # token -> {form, user_id, grp:{...}, needs:{price,desc}}
-PHOTO_WAIT: dict[int, dict] = {}      # user_id -> {token, remain}
-ADMIN_EDIT_WAIT: dict[int, dict] = {} # admin_id -> {token, field}
+# حافظه‌ی موقت
+PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, needs:{price,desc}}
+PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
+ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
+ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
 
-# ---------- Helpers ----------
-def _admins_or_owner() -> list[int]:
-    """لیست ادمین‌ها؛ اگر خالی بود، فقط OWNER (اگر تعریف شده)"""
-    admins = list_admins()
-    if admins:
-        return admins
-    return [SETTINGS.OWNER_ID] if SETTINGS.OWNER_ID else []
-
-def to_jalali(iso: str) -> str:
-    y, m, d = map(int, iso.split("-"))
+def to_jalali(date_iso: str) -> str:
+    y, m, d = map(int, date_iso.split("-"))
     j = jdatetime.date.fromgregorian(year=y, month=m, day=d)
     return f"{j.year}/{j.month:02d}/{j.day:02d}"
 
@@ -36,7 +28,8 @@ def price_words(num: int) -> str:
         num = 100_000_000_000
     parts = []
     if num >= 1_000_000_000:
-        b = num // 1_000_000_000; parts.append(f"{b} میلیارد"); num %= 1_000_000_000
+        b = num // 1_000_000_000
+        parts.append(f"{b} میلیارد"); num %= 1_000_000_000
     if num >= 1_000_000:
         m = num // 1_000_000; parts.append(f"{m} میلیون"); num %= 1_000_000
     if num >= 1_000:
@@ -60,6 +53,7 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
         parts.append(f"💵 <b>قیمت:</b> {html.quote(form['price_words'])}")
     if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
+
     parts.append("📞 شماره تماس: 09127475355 - کیوان")
     parts.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(parts)
@@ -78,63 +72,80 @@ def admin_caption(form: dict, number: int, jdate: str) -> str:
     lines.append(f"\n🗓️ <i>{jdate}</i>  •  🔷 <b>#{number}</b>")
     return "\n".join(lines)
 
-# ---------- /start و دستورات ----------
+# ---------- شروع و کیبورد ----------
 @router.message(CommandStart())
 async def on_start(message: types.Message):
-    # کیبورد مالک/ادمین: فرم + پنل مدیریتی
-    kb = start_keyboard_owner(SETTINGS.WEBAPP_URL) if is_admin(message.from_user.id) else start_keyboard(SETTINGS.WEBAPP_URL)
     if not SETTINGS.WEBAPP_URL:
-        await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
-        return
+        await message.answer("WEBAPP_URL در .env تنظیم نشده است."); return
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
 
+@router.message(F.text == "⚙️ پنل مدیریتی")
+async def open_admin_menu(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("این بخش فقط برای ادمین‌هاست."); return
+    await message.answer("پنل مدیریتی:", reply_markup=None)
+    await message.answer("یک گزینه را انتخاب کنید:", reply_markup=admin_menu_kb())
+
+@router.callback_query(F.data == "admin:list")
+async def admin_list_cb(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("دسترسی ندارید.", show_alert=True); return
+    admins = list_admins()
+    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
+    await call.message.answer(txt)
+    await call.answer()
+
+@router.callback_query(F.data == "admin:add")
+async def admin_add_cb(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("دسترسی ندارید.", show_alert=True); return
+    ADMIN_WAIT_INPUT[call.from_user.id] = {"mode": "add"}
+    await call.message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
+    await call.answer()
+
+@router.callback_query(F.data == "admin:remove")
+async def admin_remove_cb(call: types.CallbackQuery):
+    if not is_admin(call.from_user.id):
+        await call.answer("دسترسی ندارید.", show_alert=True); return
+    ADMIN_WAIT_INPUT[call.from_user.id] = {"mode": "remove"}
+    await call.message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود (OWNER حذف نمی‌شود):")
+    await call.answer()
+
+@router.message(F.text.regexp(r"^\d{4,}$"))
+async def admin_id_input(message: types.Message):
+    w = ADMIN_WAIT_INPUT.get(message.from_user.id)
+    if not w or not is_admin(message.from_user.id):
+        return
+    uid = int(message.text.strip())
+    mode = w["mode"]
+    if mode == "add":
+        ok = add_admin(uid)
+        await message.reply("✅ اضافه شد." if ok else "ℹ️ قبلاً ادمین بوده.")
+    elif mode == "remove":
+        ok = remove_admin(uid)
+        await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
+    ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
+
+# ---------- کمک / عیب‌یابی ----------
 @router.message(Command("id", "ids"))
-async def cmd_ids(message: types.Message):
+async def cmd_id(message: types.Message):
     await message.answer(f"user_id: {message.from_user.id}\nchat_id: {message.chat.id}\nchat_type: {message.chat.type}")
 
 @router.message(Command("admins"))
 async def cmd_admins(message: types.Message):
     admins = list_admins()
-    if admins:
-        txt = "ادمین‌ها:\n" + "\n".join([f"{'👑 ' if x==SETTINGS.OWNER_ID else ''}{x}" for x in admins])
-    else:
-        owner = SETTINGS.OWNER_ID or "—"
-        txt = f"ادمین ثبت نشده. OWNER: {owner}"
+    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
     await message.answer(txt)
-
-@router.message(Command("addadmin"))
-async def cmd_addadmin(message: types.Message):
-    if message.from_user.id != SETTINGS.OWNER_ID:
-        await message.answer("فقط OWNER می‌تواند ادمین اضافه کند."); return
-    try:
-        uid = int(message.text.split(maxsplit=1)[1])
-    except Exception:
-        await message.answer("فرمت: /addadmin <user_id>"); return
-    ok = add_admin(uid)
-    await message.answer("✅ اضافه شد." if ok else "ℹ️ از قبل ادمین بود.")
-
-@router.message(Command("deladmin"))
-async def cmd_deladmin(message: types.Message):
-    if message.from_user.id != SETTINGS.OWNER_ID:
-        await message.answer("فقط OWNER می‌تواند حذف کند."); return
-    try:
-        uid = int(message.text.split(maxsplit=1)[1])
-    except Exception:
-        await message.answer("فرمت: /deladmin <user_id>"); return
-    ok = remove_admin(uid)
-    await message.answer("🗑️ حذف شد." if ok else "⚠️ قابل حذف نیست یا وجود ندارد (OWNER حذف نمی‌شود).")
 
 # ---------- اعتبارسنجی فرم ----------
 def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
-    if payload.get("action") == "open_admin":
-        return False, "admin_open", None
-
     cat   = (payload.get("category") or "").strip()
     car   = (payload.get("car") or "").strip()
     year  = (payload.get("year") or "").strip()
     color = (payload.get("color") or "").strip()
     km    = (payload.get("km") or "").strip()
-    price_raw = (payload.get("price") or "").strip()
+    price_raw = (payload.get("price") or "").strip()  # هر سه دسته می‌توانند قیمت وارد کنند (فروش همکاری اختیاری)
     city  = (payload.get("city") or "").strip()
     ins   = (payload.get("insurance") or "").strip()
     gear  = (payload.get("gear") or "").strip()
@@ -172,7 +183,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     }
     return True, None, form
 
-# ---------- دریافت دیتا از وب‌اپ ----------
+# ---------- دریافت فرم از وب‌اپ ----------
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
     try:
@@ -181,15 +192,19 @@ async def on_webapp_data(message: types.Message):
         data = {}
     ok, err, form = validate_and_normalize(data)
     if not ok:
-        await message.answer("پنل مدیریتی به‌زودی اضافه می‌شود." if err=="admin_open" else (err or "داده نامعتبر است."))
-        return
+        await message.answer(err or "داده نامعتبر است."); return
     form["username"] = message.from_user.username or ""
+
     token = uuid4().hex
     PENDING[token] = {"form": form, "user_id": message.from_user.id}
     PHOTO_WAIT[message.from_user.id] = {"token": token, "remain": 5}
-    await message.answer("فرم شما ذخیره شد ✅\nاگر عکس دارید تا ۵ عکس بفرستید و در پایان /done. اگر عکس ندارید همین حالا /done.")
 
-# ---------- عکس ----------
+    await message.answer(
+        "فرم شما ذخیره شد ✅\n"
+        "اگر عکس دارید تا ۵ عکس بفرستید و در پایان /done. اگر عکس ندارید همین حالا /done."
+    )
+
+# ---------- دریافت عکس ----------
 @router.message(F.photo)
 async def on_photo(message: types.Message):
     sess = PHOTO_WAIT.get(message.from_user.id)
@@ -202,12 +217,13 @@ async def on_photo(message: types.Message):
     sess["remain"] -= 1
     await message.reply(f"عکس ثبت شد. باقی‌مانده: {sess['remain']}")
 
-# ---------- انتشار اولیه ----------
+# ---------- انتشار اولیه در گروه ----------
 async def publish_to_group(message: types.Message, form: dict, *, show_price: bool, show_desc: bool):
     number, iso = next_daily_number()
     j = to_jalali(iso)
     caption = build_caption(form, number, j, show_price=show_price, show_desc=show_desc)
     photos = form.get("photos") or []
+
     if photos:
         mg = MediaGroupBuilder()
         mg.add_photo(media=photos[0], caption=caption, parse_mode="HTML")
@@ -220,17 +236,23 @@ async def publish_to_group(message: types.Message, form: dict, *, show_price: bo
         msg = await message.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
         return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
-async def send_review_to_admins(bot, form: dict, token: str, photos: list[str], grp: dict):
-    admins = _admins_or_owner()
-    if not admins: return 0
+async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
+    """اگر ادمین تعریف نشده باشد، برای OWNER می‌فرستد."""
+    recipients = list_admins()
+    if not recipients and SETTINGS.OWNER_ID:
+        recipients = [SETTINGS.OWNER_ID]
+    if not recipients:
+        return 0
+
     cap = admin_caption(form, grp.get("number"), grp.get("jdate"))
     ok = 0
-    for admin_id in admins:
+    for admin_id in recipients:
         try:
             if photos:
                 mg = MediaGroupBuilder()
                 mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
-                for fid in photos[1:5]: mg.add_photo(media=fid)
+                for fid in photos[1:5]:
+                    mg.add_photo(media=fid)
                 await bot.send_media_group(admin_id, media=mg.build())
             else:
                 await bot.send_message(admin_id, cap, parse_mode="HTML")
@@ -245,23 +267,27 @@ async def on_done(message: types.Message):
     sess = PHOTO_WAIT.pop(message.from_user.id, None)
     if not sess:
         await message.reply("جلسه‌ای برای عکس فعال نیست."); return
+
     token = sess["token"]
     data = PENDING.get(token)
     if not data:
         await message.reply("درخواست یافت نشد."); return
+
     form = data["form"]
 
     show_price = form["category"] != "فروش همکاری"
     show_desc  = False
     grp = await publish_to_group(message, form, show_price=show_price, show_desc=show_desc)
+
     PENDING[token]["grp"] = grp
     PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
+
     sent = await send_review_to_admins(message.bot, form, token, form.get("photos") or [], grp)
 
     await message.reply("پست اولیه منتشر شد ✅ و برای ادمین ارسال گردید." if sent else
                         "پست اولیه منتشر شد ✅ اما ادمینی تنظیم/دریافت نشد.")
 
-# ---------- ادیت ادمین ----------
+# ---------- ویرایش‌های ادمین ----------
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
@@ -270,7 +296,7 @@ async def cb_edit_price(call: types.CallbackQuery):
     if token not in PENDING:
         await call.answer("درخواست یافت نشد.", show_alert=True); return
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "price"}
-    await call.message.reply("قیمت جدید را به صورت عدد (تومان) بفرستید. (تا سقف ۱۰۰ میلیارد)")
+    await call.message.reply("قیمت جدید را (تومان) به صورت عدد بفرستید. سقف ۱۰۰ میلیارد.")
     await call.answer()
 
 @router.callback_query(F.data.startswith("edit_desc:"))
@@ -287,15 +313,15 @@ async def cb_edit_desc(call: types.CallbackQuery):
 @router.message(F.text, ~CommandStart())
 async def on_admin_text_edit(message: types.Message):
     w = ADMIN_EDIT_WAIT.get(message.from_user.id)
-    if not w: return
+    if not w:
+        return
     token, field = w["token"], w["field"]
     info = PENDING.get(token)
     if not info:
         ADMIN_EDIT_WAIT.pop(message.from_user.id, None)
-        await message.reply("درخواست یافت نشد.")
-        return
-    form = info["form"]
+        await message.reply("درخواست یافت نشد."); return
 
+    form = info["form"]
     if field == "price":
         t = message.text.strip()
         num = int(re.sub(r"\D", "", t or "0") or "0")
@@ -307,6 +333,7 @@ async def on_admin_text_edit(message: types.Message):
     elif field == "desc":
         form["desc"] = message.text.strip()
         await message.reply("توضیحات به‌روزرسانی شد.")
+
     ADMIN_EDIT_WAIT.pop(message.from_user.id, None)
 
 @router.callback_query(F.data.startswith("publish:"))
@@ -322,14 +349,17 @@ async def cb_publish(call: types.CallbackQuery):
     grp  = info.get("grp") or {}
     needs = info.get("needs") or {"price": False, "desc": True}
 
-    number = grp.get("number"); jdate  = grp.get("jdate")
+    number = grp.get("number")
+    jdate  = grp.get("jdate")
     if not number or not jdate:
-        n, iso = next_daily_number(); number, jdate = n, to_jalali(iso)
+        n, iso = next_daily_number()
+        number, jdate = n, to_jalali(iso)
 
     show_price = not needs.get("price", False) or bool(form.get("price_words"))
     show_desc  = not needs.get("desc", False)  or bool(form.get("desc"))
 
     caption = build_caption(form, number, jdate, show_price=show_price, show_desc=show_desc)
+
     try:
         if grp.get("has_photos"):
             await call.bot.edit_message_caption(chat_id=grp["chat_id"], message_id=grp["msg_id"], caption=caption, parse_mode="HTML")
@@ -353,6 +383,7 @@ async def cb_reject(call: types.CallbackQuery):
     PENDING.pop(token, None)
     await call.answer("رد شد.")
     try:
-        await call.message.edit_text(call.message.text + "\n\n❌ رد شد.")
+        await call.message.edit_text(call.message.text + "\n\n❌ رد شد")
     except Exception:
         pass
+
