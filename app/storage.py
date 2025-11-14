@@ -27,11 +27,12 @@ def next_daily_number() -> tuple[int, str]:
     DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return data["num"], today
 
-# --------- مدیریت ادمین‌ها (پرسِستنت) ---------
+# --------- مدیریت ادمین‌ها (Persist) ---------
 _ADMIN_SET: set[int] = set()
 _OWNER_ID: int = 0
 
 def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
+    """در شروع برنامه صدا زده می‌شود؛ ادمین‌های .env + فایل + صاحب را ادغام می‌کند."""
     global _ADMIN_SET, _OWNER_ID
     _OWNER_ID = int(owner_id or 0)
 
@@ -77,3 +78,5 @@ def remove_admin(uid: int) -> bool:
 def is_admin(uid: int) -> bool:
     return int(uid) in _ADMIN_SET
 
+def owner_id() -> int:
+    return _OWNER_ID
