@@ -24,11 +24,10 @@ SETTINGS = Settings()
 def build_bot_and_dispatcher():
     if not SETTINGS.BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN در .env تنظیم نشده است.")
-    # بوت‌استرپ ادمین‌ها و مقاصد انتشار
+    # بوت‌استرپ ادمین‌ها
     storage.bootstrap_admins(initial_env_admins=SETTINGS.ADMIN_IDS, owner_id=SETTINGS.OWNER_ID)
-    storage.bootstrap_dests(initial_target_id=SETTINGS.TARGET_GROUP_ID)
-
+    # نشست
     session = AiohttpSession(proxy=SETTINGS.PROXY_URL) if SETTINGS.PROXY_URL else None
-    bot = Bot(SETTINGS.BOT_TOKEN, session=session)  # parse_mode را جداگانه ست می‌کنیم
+    bot = Bot(SETTINGS.BOT_TOKEN, session=session)
     dp = Dispatcher()
     return bot, dp
