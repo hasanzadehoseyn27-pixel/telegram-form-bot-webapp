@@ -9,18 +9,11 @@ def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
         row.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
-def publish_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📣 انتشار در گروه")]],
-        resize_keyboard=True
-    )
-
 def admin_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📋 لیست ادمین‌ها", callback_data="admin:list")],
         [InlineKeyboardButton(text="➕ افزودن ادمین", callback_data="admin:add")],
         [InlineKeyboardButton(text="🗑 حذف ادمین", callback_data="admin:remove")],
-        [InlineKeyboardButton(text="📍 مدیریت مقصدها", callback_data="dest:menu")],
     ])
 
 def admin_review_kb(token: str) -> InlineKeyboardMarkup:
@@ -32,17 +25,7 @@ def admin_review_kb(token: str) -> InlineKeyboardMarkup:
     row3 = [InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{token}")]
     return InlineKeyboardMarkup(inline_keyboard=[row1, row2, row3])
 
-def dest_menu_kb() -> InlineKeyboardMarkup:
+def user_finish_kb(token: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ افزودن مقصد", callback_data="dest:add")],
-        [InlineKeyboardButton(text="📜 لیست مقصدها", callback_data="dest:list")],
+        [InlineKeyboardButton(text="📣 انتشار در گروه", callback_data=f"finish:{token}")]
     ])
-
-def dest_list_kb(items: list[tuple[int, str]], active: int|None) -> InlineKeyboardMarkup:
-    rows = []
-    for cid, name in items:
-        mark = "✅ " if active and cid == active else ""
-        rows.append([InlineKeyboardButton(text=f"{mark}{name} ({cid})", callback_data=f"dest:activate:{cid}")])
-    return InlineKeyboardMarkup(inline_keyboard=rows or [[
-        InlineKeyboardButton(text="مقصدی ثبت نشده است", callback_data="noop")
-    ]])
