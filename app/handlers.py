@@ -93,10 +93,15 @@ def _parse_admin_price(text: str) -> tuple[bool, int]:
 
 # ====== ساخت کپشن‌ها ======
 def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool) -> str:
+    # برای اعداد بیمه نمایش «ماه»
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
+
+    # نشانه‌ی LRM برای درست‌نمایش‌دادن شماره در محیط RTL
+    lrm_number = "\u200e09127475355\u200e"
+
     parts = [
         f"⏱️ <b>شماره آگهی: {number}</b>",
-        "🚗 <b>آگهی جدید</b>",
+        # «آگهی جدید» عمداً حذف شد
         f"🏷️ <b>نام خودرو:</b> {html.quote(form['car'])}",
         f"📅 <b>سال ساخت:</b> {html.quote(form['year'])}",
         f"🎨 <b>رنگ:</b> {html.quote(form['color'])}",
@@ -104,13 +109,20 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
         f"🛡️ <b>مهلت بیمه (ماه):</b> {html.quote(ins_text)}",
         f"⚙️ <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
     ]
+
     if show_price and form.get("price_words"):
         parts.append(f"💵 <b>قیمت:</b> {html.quote(form['price_words'])}")
+
     if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
-    parts.append("☎️ شماره تماس: 09127475355 - کیوان")
+
+    # خط تماس: نام در راست و شماره در چپِ خط (با LRM)
+    parts.append(f"☎️ <b>تماس:</b>\nکیوان  —  {lrm_number}")
+
+    # تاریخ انتهای کپشن
     parts.append(f"\n🗓️ <i>{jdate}</i>")
     return "\n".join(parts)
+
 
 def admin_caption(form: dict, number: int, jdate: str) -> str:
     # برای ادمین: هر دو (قیمت + توضیحات) نشان داده شود
