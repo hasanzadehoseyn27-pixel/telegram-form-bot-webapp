@@ -30,7 +30,6 @@ PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
 ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
 ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
 
-
 # ====== کمکی‌ها ======
 def to_jalali(date_iso: str) -> str:
     y, m, d = map(int, date_iso.split("-"))
@@ -90,6 +89,38 @@ def _parse_admin_price(text: str) -> tuple[bool, int]:
             return True, n
     return False, 0
 
+# ====== متن پنل ادیت ادمین ======
+def admin_panel_text(form: dict) -> str:
+    return (
+        "ویرایش/اعمال:\n"
+        f"• قیمت فعلی: {html.quote(form.get('price_words') or '—')}\n"
+        f"• توضیحات فعلی: {(html.quote(form.get('desc') or '—'))[:400]}\n\n"
+        "یک مورد را انتخاب کنید:"
+    )
+
+async def refresh_admin_panels(bot: Bot, token: str):
+    """متن و کیبورد همه‌ی پیام‌های پنل ادمین را با آخرین مقدارها آپدیت می‌کند."""
+    info = PENDING.get(token) or {}
+    form = info.get("form") or {}
+    for chat_id, msg_id in (info.get("admin_msgs") or []):
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=msg_id,
+                text=admin_panel_text(form),
+                parse_mode="HTML",
+                reply_markup=admin_review_kb(token),
+            )
+        except Exception:
+            # اگر ادیت متن خطا داد، حداقل کیبورد را بازنشانی کنیم
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=chat_id,
+                    message_id=msg_id,
+                    reply_markup=admin_review_kb(token),
+                )
+            except Exception:
+                pass
 
 # ====== ساخت کپشن‌ها ======
 def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool) -> str:
@@ -125,7 +156,6 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
 
 
 def admin_caption(form: dict, number: int, jdate: str) -> str:
-    # برای ادمین: هر دو (قیمت + توضیحات) نشان داده شود
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
     lines = ["🧪 <b>موارد نیازمند ویرایش/تایید:</b>"]
     lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
@@ -139,7 +169,6 @@ def admin_caption(form: dict, number: int, jdate: str) -> str:
     lines.append(f"\n🗓️ <i>{jdate}</i>  •  ⏱️ <b>#{number}</b>")
     return "\n".join(lines)
 
-
 # ====== شروع و کیبورد ======
 @router.message(CommandStart())
 async def on_start(message: types.Message):
@@ -148,7 +177,6 @@ async def on_start(message: types.Message):
         return
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
-
 
 # ====== منوی مدیریتی ساده ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
@@ -199,7 +227,6 @@ async def admin_id_input(message: types.Message):
         await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
 
-
 # ====== دستورات راهنما ======
 @router.message(Command("id", "ids"))
 async def cmd_id(message: types.Message):
@@ -214,7 +241,6 @@ async def cmd_admins(message: types.Message):
     admins = list_admins()
     txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
     await message.answer(txt)
-
 
 # ====== اعتبارسنجی و نرمال‌سازی فرم ======
 def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
@@ -266,7 +292,6 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str|None, dict|None]:
     }
     return True, None, form
 
-
 # ====== دریافت فرم از وب‌اپ ======
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
@@ -292,7 +317,6 @@ async def on_webapp_data(message: types.Message):
         reply_markup=user_finish_kb(token)
     )
 
-
 # ====== دریافت عکس کاربر ======
 @router.message(F.photo)
 async def on_photo(message: types.Message):
@@ -303,7 +327,10 @@ async def on_photo(message: types.Message):
         sess["remain"] = MAX_PHOTOS
 
     if sess["remain"] <= 0:
-        await message.reply("حداکثر ۵ عکس مجاز است. سپس «📣 انتشار در گروه» را بزنید.", reply_markup=user_finish_kb(sess["token"]))
+        await message.reply(
+            "حداکثر ۵ عکس مجاز است. سپس «📣 انتشار در گروه» را بزنید.",
+            reply_markup=user_finish_kb(sess["token"])
+        )
         return
 
     file_id = message.photo[-1].file_id
@@ -311,19 +338,26 @@ async def on_photo(message: types.Message):
     PENDING.setdefault(token, {}).setdefault("form", {}).setdefault("photos", []).append(file_id)
     sess["remain"] -= 1
     left = max(sess["remain"], 0)
+
+    # در همه‌ی حالات، دکمه‌ی انتشار را هم ضمیمه کن
     if left == 0:
-        await message.reply("عکس ثبت شد. باقی‌مانده: 0\nاکنون «📣 انتشار در گروه» را بزنید.", reply_markup=user_finish_kb(token))
+        await message.reply(
+            "عکس ثبت شد. باقی‌مانده: 0\nاکنون «📣 انتشار در گروه» را بزنید.",
+            reply_markup=user_finish_kb(token)
+        )
     else:
-        await message.reply(f"عکس ثبت شد. باقی‌مانده: {left}")
+        await message.reply(
+            f"عکس ثبت شد. باقی‌مانده: {left}",
+            reply_markup=user_finish_kb(token)
+        )
 
-
-# ====== انتشار اولیه در مقصد ======
+# ====== انتشار اولیه ======
 async def publish_to_destination(bot: Bot, form: dict, *, show_price: bool, show_desc: bool):
     number, iso = next_daily_number()
     j = to_jalali(iso)
     caption = build_caption(form, number, j, show_price=show_price, show_desc=show_desc)
     photos = form.get("photos") or []
-    dest_id = SETTINGS.TARGET_GROUP_ID  # مقصد فعال
+    dest_id = SETTINGS.TARGET_GROUP_ID
 
     if photos:
         mg = MediaGroupBuilder()
@@ -337,9 +371,7 @@ async def publish_to_destination(bot: Bot, form: dict, *, show_price: bool, show
         msg = await bot.send_message(dest_id, caption, parse_mode="HTML")
         return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
-
 async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
-    """ارسال برای همه‌ی ادمین‌ها. آی‌دی پیام پنل هر ادمین ذخیره می‌شود تا بعداً disable شود."""
     recipients = list_admins()
     if not recipients:
         return 0
@@ -348,7 +380,6 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
     ok = 0
     for admin_id in recipients:
         try:
-            # مدیاگروه (برای نمایش عکس‌ها)
             if photos:
                 mg = MediaGroupBuilder()
                 mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
@@ -358,16 +389,19 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
             else:
                 await bot.send_message(admin_id, cap, parse_mode="HTML")
 
-            # پیام پنل با دکمه‌ها
-            panel_msg = await bot.send_message(admin_id, "ویرایش/اعمال:", reply_markup=admin_review_kb(token))
+            panel_msg = await bot.send_message(
+                admin_id,
+                admin_panel_text(form),
+                parse_mode="HTML",
+                reply_markup=admin_review_kb(token),
+            )
             PENDING[token].setdefault("admin_msgs", []).append((panel_msg.chat.id, panel_msg.message_id))
             ok += 1
         except Exception:
             pass
     return ok
 
-
-# ====== دکمه «انتشار در گروه» برای کاربر ======
+# ====== دکمه «انتشار در گروه» ======
 @router.callback_query(F.data.startswith("finish:"))
 async def cb_finish(call: types.CallbackQuery):
     token = call.data.split(":", 1)[1]
@@ -377,27 +411,29 @@ async def cb_finish(call: types.CallbackQuery):
 
     form = data["form"]
 
-    # انتشار اولیه: توضیحات مخفی؛ قیمت فقط اگر «فروش همکاری» نبود
+    # انتشار اولیه
     show_price = form["category"] != "فروش همکاری"
     show_desc  = False
     grp = await publish_to_destination(call.bot, form, show_price=show_price, show_desc=show_desc)
 
-    # نگهداری اطلاعات جهت ادیت
+    # نگهداری
     PENDING[token]["grp"] = grp
     PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
 
     # ارسال برای ادمین‌ها
     sent = await send_review_to_admins(call.bot, form, token, form.get("photos") or [], grp)
 
-    # پایان جلسه‌ی عکس برای کاربر
+    # پایان جلسه عکس
     PHOTO_WAIT.pop(call.from_user.id, None)
 
     await call.answer()
+    # ادیت پیام دکمه
     try:
         await call.message.edit_text("ثبت شد ✅\nپست اولیه در گروه منتشر شد" + (" و برای ادمین‌ها ارسال گردید." if sent else " اما ادمینی دریافت نکرد."))
     except Exception:
         pass
-
+    # پیام تازه نیز ارسال شود (طبق خواسته شما)
+    await call.message.answer("پست اولیه منتشر شد ✅ و برای بررسی به ادمین‌ها ارسال گردید.")
 
 # ====== ویرایش‌ها توسط ادمین ======
 @router.callback_query(F.data.startswith("edit_price:"))
@@ -448,21 +484,16 @@ async def on_admin_text_edit(message: types.Message):
 
     ADMIN_EDIT_WAIT.pop(message.from_user.id, None)
 
+    # 1) یک پیام تازه با دکمه‌ها برای همین ادمین
+    await message.answer(
+        admin_panel_text(form),
+        parse_mode="HTML",
+        reply_markup=admin_review_kb(token),
+    )
+    # 2) آپدیت پنل همه ادمین‌ها
+    await refresh_admin_panels(message.bot, token)
 
-# ====== اعمال نهایی روی پست گروه ======
-def _disable_admin_panels(token: str, bot: Bot, note: str):
-    """کل پیام‌های پنل ادمین برای این توکن را بی‌اثر می‌کند."""
-    refs = (PENDING.get(token) or {}).get("admin_msgs") or []
-    for chat_id, msg_id in refs:
-        try:
-            # یا ادیت متن، یا حداقل حذف کیبورد
-            # (سعی می‌کنیم متن فعلی را نگه داریم و فقط پیامِ کوچکِ وضعیت را اضافه کنیم)
-            # اگر ادیت متن خطا داد، فقط کیبورد را پاک می‌کنیم.
-            bot.edit_message_text  # فقط برای اطمینان از وجود
-        except Exception:
-            pass
-    return refs
-
+# ====== اعمال نهایی ======
 @router.callback_query(F.data.startswith("publish:"))
 async def cb_publish(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
@@ -495,7 +526,7 @@ async def cb_publish(call: types.CallbackQuery):
     except Exception:
         await call.answer("خطا در ویرایش پست گروه.", show_alert=True); return
 
-    # بی‌اثر کردن پنل سایر ادمین‌ها
+    # غیرفعال‌سازی کیبورد و نوشتن وضعیت برای همه پنل‌ها
     for chat_id, msg_id in (info.get("admin_msgs") or []):
         try:
             await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
@@ -504,13 +535,15 @@ async def cb_publish(call: types.CallbackQuery):
             pass
 
     await call.answer("اعمال شد.")
-    # همچنین پیام فعلی را آپدیت کنیم (اگر ممکن بود)
+    # همین ادمین هم پیام جدا بگیرد (بیاید پایین چت)
+    await call.message.answer("✅ اعمال شد روی پست گروه")
+    # و پیام فعلی هم اگر شد ادیت شود
     try:
         await call.message.edit_text("✅ اعمال شد روی پست گروه")
     except Exception:
         pass
-    PENDING.pop(token, None)
 
+    PENDING.pop(token, None)
 
 @router.callback_query(F.data.startswith("reject:"))
 async def cb_reject(call: types.CallbackQuery):
