@@ -224,20 +224,20 @@
           <div class="grid">
             <div>
               <label
-                >قیمت (تومان) <span id="price_hint" class="muted"></span
+                >قیمت (میلیون تومان) <span id="price_hint" class="muted"></span
               ></label>
               <input
                 id="price"
-                inputmode="numeric"
-                placeholder="تا سقف ۱۰۰ میلیارد تومان"
+                inputmode="decimal"
+                placeholder="مثلاً 50.5 = پنجاه و نیم میلیون"
               />
               <div class="err" id="e_price"></div>
             </div>
-            <div><!-- ستون خالی برای تراز بندی --></div>
+            <div></div>
           </div>
 
-          <label style="margin-top: 10px">
-            توضیحات
+          <label style="margin-top: 10px"
+            >توضیحات
             <span class="muted"
               >(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span
             >
@@ -281,7 +281,6 @@
 
       let category = "فروش";
 
-      // — تب‌ها
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -295,11 +294,11 @@
         };
       });
 
-      // ــ اعداد فارسی؟
+      // تشخیص اعداد فارسی
       const hasPersianDigits = (s) =>
         /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
 
-      // تبدیل عدد به کلمات تومان (تا 100 میلیارد)
+      // کلمات تومان از عدد (تا ۱۰۰ میلیارد)
       function priceWordsRaw(n) {
         if (!n) return "";
         if (n > 100_000_000_000) n = 100_000_000_000;
@@ -322,13 +321,21 @@
         if (n > 0) parts.push(n + "");
         return parts.join(" و ") + " تومان";
       }
-      function priceWords(v) {
-        const n = parseInt((v || "").replace(/\D/g, ""), 10);
-        if (!n) return "";
-        return priceWordsRaw(n);
-      }
+      // میلیون به تومان (اعشار ۱ رقمی)
+      const normalizeMillion = (v) => {
+        if (!v) return "";
+        return (v + "").replace(/[,\u066B]/g, ".").replace(/[^\d.]/g, "");
+      };
+      const millionToToman = (v) => {
+        const s = normalizeMillion(v);
+        if (!/^\d{1,5}(\.\d)?$/.test(s)) return 0;
+        const f = parseFloat(s);
+        return Math.round(f * 1_000_000);
+      };
+
       $("#price").addEventListener("input", () => {
-        $("#price_hint").textContent = priceWords($("#price").value);
+        const t = millionToToman($("#price").value);
+        $("#price_hint").textContent = t ? priceWordsRaw(t) : "";
       });
 
       function setErr(id, msg) {
@@ -349,7 +356,7 @@
           km: $("#km").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(),
+          price: $("#price").value.trim(), // میلیون با اعشار ۱ رقمی
           desc: $("#desc").value.trim(),
         };
       }
@@ -388,15 +395,18 @@
             ok = false;
           }
         }
-        // قیمت: در «فروش همکاری» اختیاری؛ در بقیه اجباری
-        const num = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
-        if (p.category !== "فروش همکاری") {
-          if (hasPersianDigits(p.price) || num < 1 || num > 100_000_000_000) {
-            setErr("price", "قیمت تا سقف ۱۰۰ میلیارد تومان (با ارقام لاتین).");
+        const m = normalizeMillion(p.price);
+        const reqPrice = p.category !== "فروش همکاری";
+        if (reqPrice) {
+          if (!/^\d{1,5}(\.\d)?$/.test(m)) {
+            setErr(
+              "price",
+              "قیمت را به میلیون و با ارقام لاتین بنویسید (تا 100000.0)."
+            );
             ok = false;
           }
-        } else if (p.price && hasPersianDigits(p.price)) {
-          setErr("price", "قیمت را با ارقام لاتین وارد کنید.");
+        } else if (p.price && !/^\d{1,5}(\.\d)?$/.test(m)) {
+          setErr("price", "قیمت را به میلیون و با ارقام لاتین بنویسید.");
           ok = false;
         }
         return ok;
@@ -406,13 +416,13 @@
       $("#submit").onclick = () => {
         const p = collect();
         if (!validate(p)) return;
-        const n = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
+        const t = millionToToman(p.price);
         const priceText =
           p.category === "فروش همکاری"
-            ? n
-              ? priceWordsRaw(n)
+            ? t
+              ? priceWordsRaw(t)
               : "—"
-            : priceWordsRaw(n) || "—";
+            : priceWordsRaw(t) || "—";
         const insText = p.insurance ? p.insurance + " ماه" : "—";
         $("#preview").textContent = `دسته: ${p.category}
 نام خودرو: ${p.car}
