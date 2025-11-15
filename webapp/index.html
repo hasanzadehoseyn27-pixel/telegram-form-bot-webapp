@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>بانک خودرو همکاران</title>
+    <title>فرم آگهی بانک خودرو همکاران</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
       :root {
@@ -152,19 +152,6 @@
         border-radius: 12px;
         padding: 10px;
       }
-      .thumbs {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-top: 8px;
-      }
-      .thumbs img {
-        width: 90px;
-        height: 90px;
-        object-fit: cover;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-      }
       @media (max-width: 560px) {
         .grid {
           grid-template-columns: 1fr;
@@ -175,7 +162,7 @@
   <body>
     <div class="wrap">
       <div class="card">
-        <h1>≪ بانک خودرو همکاران ≫</h1>
+        <h1>بانک خودرو همکاران</h1>
 
         <div class="tabs">
           <div class="tab active" data-cat="فروش">فروش</div>
@@ -188,11 +175,13 @@
             <div>
               <label>نام خودرو *</label>
               <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
-              <div class="muted">ورود رقم فارسی مجاز نیست</div>
+              <div class="muted">
+                عدد بیش از ۴ تا پشت‌سرهم مجاز نیست (فقط ارقام لاتین)
+              </div>
               <div class="err" id="e_car"></div>
             </div>
             <div>
-              <label>سال ساخت (۴ رقم) *</label>
+              <label>سال ساخت *</label>
               <input id="year" inputmode="numeric" placeholder="مثلاً: 1401" />
               <div class="err" id="e_year"></div>
             </div>
@@ -213,6 +202,16 @@
 
           <div class="grid">
             <div>
+              <label>مهلت بیمه <span class="muted">(به ماه)</span></label>
+              <input
+                id="insurance"
+                inputmode="numeric"
+                maxlength="2"
+                placeholder="مثلاً: 6"
+              />
+              <div class="err" id="e_ins"></div>
+            </div>
+            <div>
               <label>گیربکس</label>
               <select id="gear">
                 <option value="">— خالی —</option>
@@ -220,30 +219,30 @@
                 <option>دنده‌ای</option>
               </select>
             </div>
+          </div>
+
+          <div class="grid">
             <div>
               <label
-                >قیمت (میلیون تومان) <span id="price_hint" class="muted"></span
+                >قیمت (تومان) <span id="price_hint" class="muted"></span
               ></label>
               <input
-                id="price_m"
+                id="price"
                 inputmode="numeric"
-                placeholder="مثلاً: 50 یعنی ۵۰ میلیون"
+                placeholder="تا سقف ۱۰۰ میلیارد تومان"
               />
-              <div class="err" id="e_price_m"></div>
+              <div class="err" id="e_price"></div>
             </div>
+            <div><!-- ستون خالی برای تراز بندی --></div>
           </div>
 
-          <div>
-            <label>مهلت بیمه</label>
-            <input id="insurance" placeholder="اختیاری" />
-          </div>
-
-          <label style="margin-top: 10px">توضیحات</label>
+          <label style="margin-top: 10px">
+            توضیحات
+            <span class="muted"
+              >(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span
+            >
+          </label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
-
-          <label style="margin-top: 10px">عکس‌ها (تا ۵ عدد)</label>
-          <input id="photos" type="file" accept="image/*" multiple />
-          <div class="thumbs" id="thumbs"></div>
 
           <div class="row">
             <button id="submit" class="primary">ثبت فرم</button>
@@ -257,7 +256,6 @@
       <div class="box">
         <h3>پیش‌نمایش</h3>
         <div id="preview" class="preview"></div>
-        <div id="previewPhotos" class="thumbs"></div>
         <div class="row" style="margin-top: 12px">
           <button
             id="cancel"
@@ -282,8 +280,8 @@
       const $ = (s) => document.querySelector(s);
 
       let category = "فروش";
-      let selectedFiles = [];
 
+      // — تب‌ها
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -291,74 +289,85 @@
             .forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
-          $("#price_m").value = "";
+          $("#price").value = "";
           $("#price_hint").textContent = "";
           clearErrors();
         };
       });
 
-      // فقط رقم لاتین
-      const onlyLatinDigits = (v) => v.replace(/[^0-9]/g, "");
-      const hasPersianDigit = (v) => /[\u06F0-\u06F9\u0660-\u0669]/.test(v);
+      // ــ اعداد فارسی؟
+      const hasPersianDigits = (s) =>
+        /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
 
-      $("#year").addEventListener("input", (e) => {
-        e.target.value = onlyLatinDigits(e.target.value).slice(0, 4);
-      });
-      $("#km").addEventListener("input", (e) => {
-        e.target.value = onlyLatinDigits(e.target.value).slice(0, 6);
-      });
-      $("#price_m").addEventListener("input", (e) => {
-        e.target.value = onlyLatinDigits(e.target.value).slice(0, 5);
-        const m = parseInt(e.target.value || "0", 10);
-        $("#price_hint").textContent = m ? `${m} میلیون تومان` : "";
-      });
-
-      // عکس‌ها + پیش‌نمایش
-      $("#photos").addEventListener("change", (e) => {
-        const files = Array.from(e.target.files || []);
-        selectedFiles = files.slice(0, 5);
-        const thumbs = $("#thumbs");
-        thumbs.innerHTML = "";
-        selectedFiles.forEach((f) => {
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(f);
-          thumbs.appendChild(img);
-        });
+      // تبدیل عدد به کلمات تومان (تا 100 میلیارد)
+      function priceWordsRaw(n) {
+        if (!n) return "";
+        if (n > 100_000_000_000) n = 100_000_000_000;
+        let parts = [];
+        if (n >= 1_000_000_000) {
+          let b = Math.floor(n / 1_000_000_000);
+          parts.push(b + " میلیارد");
+          n %= 1_000_000_000;
+        }
+        if (n >= 1_000_000) {
+          let m = Math.floor(n / 1_000_000);
+          parts.push(m + " میلیون");
+          n %= 1_000_000;
+        }
+        if (n >= 1_000) {
+          let k = Math.floor(n / 1_000);
+          parts.push(k + " هزار");
+          n %= 1_000;
+        }
+        if (n > 0) parts.push(n + "");
+        return parts.join(" و ") + " تومان";
+      }
+      function priceWords(v) {
+        const n = parseInt((v || "").replace(/\D/g, ""), 10);
+        if (!n) return "";
+        return priceWordsRaw(n);
+      }
+      $("#price").addEventListener("input", () => {
+        $("#price_hint").textContent = priceWords($("#price").value);
       });
 
       function setErr(id, msg) {
         $("#e_" + id).textContent = msg || "";
       }
       function clearErrors() {
-        ["car", "year", "color", "km", "price_m"].forEach((k) => setErr(k, ""));
+        ["car", "year", "color", "km", "price", "ins"].forEach((k) =>
+          setErr(k, "")
+        );
       }
 
       function collect() {
-        const m =
-          parseInt(($("#price_m").value || "").replace(/\D/g, ""), 10) || 0;
         return {
           category,
           car: $("#car").value.trim(),
           year: $("#year").value.trim(),
           color: $("#color").value.trim(),
           km: $("#km").value.trim(),
-          gear: $("#gear").value,
           insurance: $("#insurance").value.trim(),
-          price: m ? String(m * 1_000_000) : "", // تبدیل «میلیون» به تومان
-          price_m: m, // فقط برای اطلاع
+          gear: $("#gear").value,
+          price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
-          photos_hint: selectedFiles.length, // فقط شمارِ عکس‌ها
         };
       }
 
       function validate(p) {
         clearErrors();
         let ok = true;
-        if (!p.car || p.car.length > 10 || hasPersianDigit(p.car)) {
-          setErr("car", "نام خودرو نامعتبر است (رقم فارسی مجاز نیست).");
+
+        if (
+          hasPersianDigits(p.car) ||
+          /\d{5,}/.test(p.car) ||
+          !p.car ||
+          p.car.length > 10
+        ) {
+          setErr("car", "نام خودرو نامعتبر است (فقط ارقام لاتین).");
           ok = false;
         }
-        if (!/^\d{4}$/.test(p.year)) {
+        if (hasPersianDigits(p.year) || !/^[0-9]{4}$/.test(p.year)) {
           setErr("year", "سال ساخت باید ۴ رقم لاتین باشد.");
           ok = false;
         }
@@ -366,16 +375,29 @@
           setErr("color", "رنگ باید حروف فارسی (حداکثر ۶) باشد.");
           ok = false;
         }
-        if (!/^\d{1,6}$/.test(p.km)) {
-          setErr("km", "کارکرد باید عددیِ لاتین، حداکثر ۶ رقمی باشد.");
+        if (hasPersianDigits(p.km) || !/^[0-9]{1,6}$/.test(p.km)) {
+          setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
           ok = false;
         }
-        if (p.category !== "فروش همکاری") {
-          const n = parseInt(p.price || "0", 10);
-          if (n < 1 || n > 100_000_000_000) {
-            setErr("price_m", "قیمت تا سقف ۱۰۰ میلیارد تومان (لاتین).");
+        if (p.insurance) {
+          if (
+            hasPersianDigits(p.insurance) ||
+            !/^[0-9]{1,2}$/.test(p.insurance)
+          ) {
+            setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
             ok = false;
           }
+        }
+        // قیمت: در «فروش همکاری» اختیاری؛ در بقیه اجباری
+        const num = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
+        if (p.category !== "فروش همکاری") {
+          if (hasPersianDigits(p.price) || num < 1 || num > 100_000_000_000) {
+            setErr("price", "قیمت تا سقف ۱۰۰ میلیارد تومان (با ارقام لاتین).");
+            ok = false;
+          }
+        } else if (p.price && hasPersianDigits(p.price)) {
+          setErr("price", "قیمت را با ارقام لاتین وارد کنید.");
+          ok = false;
         }
         return ok;
       }
@@ -384,34 +406,24 @@
       $("#submit").onclick = () => {
         const p = collect();
         if (!validate(p)) return;
+        const n = parseInt((p.price || "").replace(/\D/g, ""), 10) || 0;
         const priceText =
           p.category === "فروش همکاری"
-            ? p.price_m
-              ? `${p.price_m} میلیون تومان`
+            ? n
+              ? priceWordsRaw(n)
               : "—"
-            : p.price_m
-            ? `${p.price_m} میلیون تومان`
-            : "—";
-
+            : priceWordsRaw(n) || "—";
+        const insText = p.insurance ? p.insurance + " ماه" : "—";
         $("#preview").textContent = `دسته: ${p.category}
 نام خودرو: ${p.car}
 سال: ${p.year}
 رنگ: ${p.color}
 گیربکس: ${p.gear || "—"}
-بیمه: ${p.insurance || "—"}
+مهلت بیمه (ماه): ${insText}
 کارکرد: ${p.km}
 قیمت: ${priceText}
 توضیحات:
 ${p.desc || "—"}`;
-
-        const box = $("#previewPhotos");
-        box.innerHTML = "";
-        selectedFiles.forEach((f) => {
-          const img = document.createElement("img");
-          img.src = URL.createObjectURL(f);
-          box.appendChild(img);
-        });
-
         dlg.style.display = "flex";
       };
       $("#cancel").onclick = () => (dlg.style.display = "none");
