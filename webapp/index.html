@@ -71,7 +71,11 @@
       .grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: 14px;
+      }
+      .grid > div {
+        display: flex;
+        flex-direction: column;
       }
       label {
         display: block;
@@ -88,6 +92,11 @@
         color: var(--txt);
         outline: none;
         font-size: 15px;
+        min-height: 44px;
+      }
+      select {
+        -webkit-appearance: none;
+        appearance: none;
       }
       input:focus,
       select:focus,
@@ -298,7 +307,39 @@
       const hasPersianDigits = (s) =>
         /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
 
-      // کلمات تومان از عدد (تا ۱۰۰ میلیارد)
+      // ---- نمایش درست از ورودیِ «میلیون تومان» (با اعشار) ----
+      function normalizeMillion(v) {
+        return (v ?? "")
+          .toString()
+          .replace(/[,\u066B]/g, ".")
+          .replace(/[^\d.]/g, "");
+      }
+      function formatPriceFromMillionsText(str) {
+        const raw = normalizeMillion(str);
+        const m = parseFloat(raw);
+        if (!isFinite(m) || m <= 0) return "";
+        const CAP = 100_000; // حداکثر 100 میلیارد = 100000 میلیون
+        let x = Math.min(m, CAP); // بر حسب میلیون
+
+        const bil = Math.floor(x / 1000); // هر 1000 میلیون = 1 میلیارد
+        const rest = +(x - bil * 1000).toFixed(3); // باقی‌مانده (میلیون)
+
+        const parts = [];
+        if (bil > 0) {
+          parts.push(`${bil} میلیارد`);
+          const remM = Math.round(rest * 1000); // 0.8 => 800 میلیون
+          if (remM > 0) parts.push(`${remM} میلیون`);
+        } else {
+          const wholeM = Math.floor(x);
+          const fracM = +(x - wholeM).toFixed(3);
+          if (wholeM > 0) parts.push(`${wholeM} میلیون`);
+          const thousands = Math.round(fracM * 1000); // 0.5 => 500 هزار
+          if (thousands > 0) parts.push(`${thousands} هزار`);
+        }
+        return parts.join(" و ") + " تومان";
+      }
+
+      // تومان‌نویس سراسری (برای ارسال/پیش‌نمایش اگر لازم شد)
       function priceWordsRaw(n) {
         if (!n) return "";
         if (n > 100_000_000_000) n = 100_000_000_000;
@@ -321,11 +362,8 @@
         if (n > 0) parts.push(n + "");
         return parts.join(" و ") + " تومان";
       }
-      // میلیون به تومان (اعشار ۱ رقمی)
-      const normalizeMillion = (v) => {
-        if (!v) return "";
-        return (v + "").replace(/[,\u066B]/g, ".").replace(/[^\d.]/g, "");
-      };
+
+      // تبدیل «میلیون» (با اعشار یک‌رقمی) به تومان عدد صحیح برای ارسال
       const millionToToman = (v) => {
         const s = normalizeMillion(v);
         if (!/^\d{1,5}(\.\d)?$/.test(s)) return 0;
@@ -333,9 +371,11 @@
         return Math.round(f * 1_000_000);
       };
 
+      // Hint بالای فیلد قیمت
       $("#price").addEventListener("input", () => {
-        const t = millionToToman($("#price").value);
-        $("#price_hint").textContent = t ? priceWordsRaw(t) : "";
+        $("#price_hint").textContent = formatPriceFromMillionsText(
+          $("#price").value
+        );
       });
 
       function setErr(id, msg) {
@@ -416,14 +456,14 @@
       $("#submit").onclick = () => {
         const p = collect();
         if (!validate(p)) return;
-        const t = millionToToman(p.price);
         const priceText =
           p.category === "فروش همکاری"
-            ? t
-              ? priceWordsRaw(t)
+            ? p.price
+              ? formatPriceFromMillionsText(p.price)
               : "—"
-            : priceWordsRaw(t) || "—";
+            : formatPriceFromMillionsText(p.price) || "—";
         const insText = p.insurance ? p.insurance + " ماه" : "—";
+
         $("#preview").textContent = `دسته: ${p.category}
 نام خودرو: ${p.car}
 سال: ${p.year}
