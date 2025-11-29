@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>فرم آگهی بانک خودرو همکاران</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --bg2: #0b1220;
+        --line: rgba(255, 255, 255, 0.12);
+        --txt: #e5e7eb;
+        --muted: #9ca3af;
+        --accent: #22c55e;
+        --danger: #ef4444;
+      }
+      * {
+        box-sizing: border-box;
+        font-family: system-ui, Segoe UI, IRANSans, Arial;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, var(--bg2), var(--bg));
+        color: var(--txt);
+        padding: 20px;
+      }
+      .wrap {
+        width: min(780px, 96vw);
+      }
+      .card {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--line);
+        backdrop-filter: blur(8px);
+        border-radius: 18px;
+        padding: 18px 16px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+      }
+      h1 {
+        margin: 0 0 14px;
+        font-size: 20px;
+        text-align: center;
+      }
+      .tabs {
+        display: flex;
+        gap: 10px;
+        margin: 6px 0 16px;
+      }
+      .tab {
+        flex: 1;
+        text-align: center;
+        padding: 10px;
+        border-radius: 12px;
+        background: #0e1628;
+        border: 1px solid var(--line);
+        cursor: pointer;
+      }
+      .tab.active {
+        background: #16243d;
+        border-color: var(--accent);
+      }
+      .section {
+        background: #0e1628;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .grid > div {
+        display: flex;
+        flex-direction: column;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #0b1526;
+        color: var(--txt);
+        outline: none;
+        font-size: 15px;
+        min-height: 44px;
+      }
+      select {
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--accent);
+      }
+      textarea {
+        min-height: 100px;
+        resize: vertical;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 4px;
+      }
+      .err {
+        color: var(--danger);
+        font-size: 12px;
+        margin-top: 6px;
+        min-height: 14px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      button {
+        flex: 1;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .primary {
+        background: var(--accent);
+        color: #052e16;
+      }
+      .dialog {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .box {
+        background: #0e1628;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        max-width: 560px;
+        width: 92vw;
+        padding: 16px;
+      }
+      .box h3 {
+        margin: 0 0 10px;
+      }
+      .preview {
+        white-space: pre-line;
+        color: var(--muted);
+        border: 1px dashed var(--line);
+        border-radius: 12px;
+        padding: 10px;
+      }
+      @media (max-width: 560px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>بانک خودرو همکاران</h1>
+
+        <div class="tabs">
+          <div class="tab active" data-cat="فروش">فروش</div>
+          <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
+          <div class="tab" data-cat="خرید">خرید</div>
+        </div>
+
+        <div class="section">
+          <div class="grid">
+            <div>
+              <label>نام خودرو *</label>
+              <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
+              <div class="muted">
+                عدد بیش از ۴ تا پشت‌سرهم مجاز نیست (فقط ارقام لاتین)
+              </div>
+              <div class="err" id="e_car"></div>
+            </div>
+            <div>
+              <label>سال ساخت *</label>
+              <input id="year" inputmode="numeric" placeholder="مثلاً: 1401" />
+              <div class="err" id="e_year"></div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label>رنگ *</label>
+              <input id="color" placeholder="فقط حروف فارسی (حداکثر ۶)" />
+              <div class="err" id="e_color"></div>
+            </div>
+            <div>
+              <label>کارکرد (کیلومتر) *</label>
+              <input id="km" inputmode="numeric" placeholder="مثلاً: 45000" />
+              <div class="err" id="e_km"></div>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label>مهلت بیمه <span class="muted">(به ماه)</span></label>
+              <input
+                id="insurance"
+                inputmode="numeric"
+                maxlength="2"
+                placeholder="مثلاً: 6"
+              />
+              <div class="err" id="e_ins"></div>
+            </div>
+            <div>
+              <label>گیربکس</label>
+              <select id="gear">
+                <option value="">— خالی —</option>
+                <option>اتومات</option>
+                <option>دنده‌ای</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <label
+                >قیمت (میلیون تومان) <span id="price_hint" class="muted"></span
+              ></label>
+              <input
+                id="price"
+                inputmode="decimal"
+                placeholder="مثلاً 50.5 = پنجاه و نیم میلیون"
+              />
+              <div class="err" id="e_price"></div>
+            </div>
+            <div></div>
+          </div>
+
+          <label style="margin-top: 10px"
+            >توضیحات
+            <span class="muted"
+              >(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span
+            >
+          </label>
+          <textarea id="desc" placeholder="دلخواه"></textarea>
+
+          <div class="row">
+            <button id="submit" class="primary">ثبت فرم</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- پیش‌نمایش -->
+    <div id="dlg" class="dialog">
+      <div class="box">
+        <h3>پیش‌نمایش</h3>
+        <div id="preview" class="preview"></div>
+        <div class="row" style="margin-top: 12px">
+          <button
+            id="cancel"
+            class="primary"
+            style="
+              background: #0e1628;
+              border: 1px solid var(--line);
+              color: var(--txt);
+            "
+          >
+            برگشت
+          </button>
+          <button id="confirm" class="primary">تایید و ارسال</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const tg = window.Telegram.WebApp;
+      tg.expand();
+      tg.ready();
+      const $ = (s) => document.querySelector(s);
+
+      let category = "فروش";
+
+      document.querySelectorAll(".tab").forEach((t) => {
+        t.onclick = () => {
+          document
+            .querySelectorAll(".tab")
+            .forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+          category = t.dataset.cat;
+          $("#price").value = "";
+          $("#price_hint").textContent = "";
+          clearErrors();
+        };
+      });
+
+      // تشخیص اعداد فارسی
+      const hasPersianDigits = (s) =>
+        /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
+
+      // ---- نمایش درست از ورودیِ «میلیون تومان» (با اعشار) ----
+      function normalizeMillion(v) {
+        return (v ?? "")
+          .toString()
+          .replace(/[,\u066B]/g, ".")
+          .replace(/[^\d.]/g, "");
+      }
+      function formatPriceFromMillionsText(str) {
+        const raw = normalizeMillion(str);
+        const m = parseFloat(raw);
+        if (!isFinite(m) || m <= 0) return "";
+        const CAP = 100_000; // حداکثر 100 میلیارد = 100000 میلیون
+        let x = Math.min(m, CAP); // بر حسب میلیون
+
+        const bil = Math.floor(x / 1000); // هر 1000 میلیون = 1 میلیارد
+        const rest = +(x - bil * 1000).toFixed(3); // باقی‌مانده (میلیون)
+
+        const parts = [];
+        if (bil > 0) {
+          parts.push(`${bil} میلیارد`);
+          const remM = Math.round(rest * 1000); // 0.8 => 800 میلیون
+          if (remM > 0) parts.push(`${remM} میلیون`);
+        } else {
+          const wholeM = Math.floor(x);
+          const fracM = +(x - wholeM).toFixed(3);
+          if (wholeM > 0) parts.push(`${wholeM} میلیون`);
+          const thousands = Math.round(fracM * 1000); // 0.5 => 500 هزار
+          if (thousands > 0) parts.push(`${thousands} هزار`);
+        }
+        return parts.join(" و ") + " تومان";
+      }
+
+      // تومان‌نویس سراسری (برای ارسال/پیش‌نمایش اگر لازم شد)
+      function priceWordsRaw(n) {
+        if (!n) return "";
+        if (n > 100_000_000_000) n = 100_000_000_000;
+        let parts = [];
+        if (n >= 1_000_000_000) {
+          let b = Math.floor(n / 1_000_000_000);
+          parts.push(b + " میلیارد");
+          n %= 1_000_000_000;
+        }
+        if (n >= 1_000_000) {
+          let m = Math.floor(n / 1_000_000);
+          parts.push(m + " میلیون");
+          n %= 1_000_000;
+        }
+        if (n >= 1_000) {
+          let k = Math.floor(n / 1_000);
+          parts.push(k + " هزار");
+          n %= 1_000;
+        }
+        if (n > 0) parts.push(n + "");
+        return parts.join(" و ") + " تومان";
+      }
+
+      // تبدیل «میلیون» (با اعشار یک‌رقمی) به تومان عدد صحیح برای ارسال
+      const millionToToman = (v) => {
+        const s = normalizeMillion(v);
+        if (!/^\d{1,5}(\.\d)?$/.test(s)) return 0;
+        const f = parseFloat(s);
+        return Math.round(f * 1_000_000);
+      };
+
+      // Hint بالای فیلد قیمت
+      $("#price").addEventListener("input", () => {
+        $("#price_hint").textContent = formatPriceFromMillionsText(
+          $("#price").value
+        );
+      });
+
+      function setErr(id, msg) {
+        $("#e_" + id).textContent = msg || "";
+      }
+      function clearErrors() {
+        ["car", "year", "color", "km", "price", "ins"].forEach((k) =>
+          setErr(k, "")
+        );
+      }
+
+      function collect() {
+        return {
+          category,
+          car: $("#car").value.trim(),
+          year: $("#year").value.trim(),
+          color: $("#color").value.trim(),
+          km: $("#km").value.trim(),
+          insurance: $("#insurance").value.trim(),
+          gear: $("#gear").value,
+          price: $("#price").value.trim(), // میلیون با اعشار ۱ رقمی
+          desc: $("#desc").value.trim(),
+        };
+      }
+
+      function validate(p) {
+        clearErrors();
+        let ok = true;
+
+        if (
+          hasPersianDigits(p.car) ||
+          /\d{5,}/.test(p.car) ||
+          !p.car ||
+          p.car.length > 10
+        ) {
+          setErr("car", "نام خودرو نامعتبر است (فقط ارقام لاتین).");
+          ok = false;
+        }
+        if (hasPersianDigits(p.year) || !/^[0-9]{4}$/.test(p.year)) {
+          setErr("year", "سال ساخت باید ۴ رقم لاتین باشد.");
+          ok = false;
+        }
+        if (!/^[آ-ی\s]{1,6}$/.test(p.color)) {
+          setErr("color", "رنگ باید حروف فارسی (حداکثر ۶) باشد.");
+          ok = false;
+        }
+        if (hasPersianDigits(p.km) || !/^[0-9]{1,6}$/.test(p.km)) {
+          setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
+          ok = false;
+        }
+        if (p.insurance) {
+          if (
+            hasPersianDigits(p.insurance) ||
+            !/^[0-9]{1,2}$/.test(p.insurance)
+          ) {
+            setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
+            ok = false;
+          }
+        }
+        const m = normalizeMillion(p.price);
+        const reqPrice = p.category !== "فروش همکاری";
+        if (reqPrice) {
+          if (!/^\d{1,5}(\.\d)?$/.test(m)) {
+            setErr(
+              "price",
+              "قیمت را به میلیون و با ارقام لاتین بنویسید (تا 100000.0)."
+            );
+            ok = false;
+          }
+        } else if (p.price && !/^\d{1,5}(\.\d)?$/.test(m)) {
+          setErr("price", "قیمت را به میلیون و با ارقام لاتین بنویسید.");
+          ok = false;
+        }
+        return ok;
+      }
+
+      const dlg = $("#dlg");
+      $("#submit").onclick = () => {
+        const p = collect();
+        if (!validate(p)) return;
+        const priceText =
+          p.category === "فروش همکاری"
+            ? p.price
+              ? formatPriceFromMillionsText(p.price)
+              : "—"
+            : formatPriceFromMillionsText(p.price) || "—";
+        const insText = p.insurance ? p.insurance + " ماه" : "—";
+
+        $("#preview").textContent = `دسته: ${p.category}
+نام خودرو: ${p.car}
+سال: ${p.year}
+رنگ: ${p.color}
+گیربکس: ${p.gear || "—"}
+مهلت بیمه (ماه): ${insText}
+کارکرد: ${p.km}
+قیمت: ${priceText}
+توضیحات:
+${p.desc || "—"}`;
+        dlg.style.display = "flex";
+      };
+      $("#cancel").onclick = () => (dlg.style.display = "none");
+      $("#confirm").onclick = () => {
+        tg.sendData(JSON.stringify(collect()));
+        tg.close();
+      };
+    </script>
+  </body>
+</html>
