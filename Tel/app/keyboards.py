@@ -17,7 +17,7 @@ def user_finish_kb(token: str) -> InlineKeyboardMarkup:
 
 def admin_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 لیست ادمین‌ها", callback_data="admin:list")],
+        [InlineKeyboardButton(text="📋 طشسطشس ادمین‌ها", callback_data="admin:list")],
         [InlineKeyboardButton(text="➕ افزودن ادمین", callback_data="admin:add")],
         [InlineKeyboardButton(text="🗑 حذف ادمین", callback_data="admin:remove")],
     ])

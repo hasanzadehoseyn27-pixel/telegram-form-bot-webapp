@@ -184,6 +184,8 @@ async def open_admin_menu(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("این بخش فقط برای ادمین‌هاست.")
         return
+
+    # هیچ کیبورد Reply جدیدی باز نمی‌کنیم؛ فقط پیام و دکمه‌های inline
     await message.answer("پنل مدیریتی:", reply_markup=None)
     await message.answer("یک گزینه را انتخاب کنید:", reply_markup=admin_menu_kb())
 
