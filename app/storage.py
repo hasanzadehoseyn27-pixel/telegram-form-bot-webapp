@@ -3,10 +3,9 @@ import json
 from pathlib import Path
 from datetime import date
 
-# مسیر داده‌ها
-ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data"
-DATA.mkdir(exist_ok=True)
+# مسیر داده‌ها – تنها مسیر قابل نوشتن در لیارا (Python Runtime)
+DATA = Path("/tmp/bot_data")
+DATA.mkdir(parents=True, exist_ok=True)
 
 DAILY_FILE = DATA / "daily.json"
 ADMINS_FILE = DATA / "admins.json"
@@ -27,12 +26,11 @@ def next_daily_number() -> tuple[int, str]:
     DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     return data["num"], today
 
-# ---------- ادمین‌ها (پایدار) ----------
+# ---------- ادمین‌ها ----------
 _ADMIN_SET: set[int] = set()
 _OWNER_ID: int = 0
 
 def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
-    """در شروع برنامه: ادمین‌های .env + فایل + OWNER"""
     global _ADMIN_SET, _OWNER_ID
     _OWNER_ID = int(owner_id or 0)
 
@@ -75,9 +73,7 @@ def remove_admin(uid: int) -> bool:
 def is_admin(uid: int) -> bool:
     return int(uid) in _ADMIN_SET
 
-# ---------- مقصدها (گروه/کانال) ----------
-# ساختار فایل:
-# {"list":[{"id":-1001,"title":"گروه A"}, …], "active":-1001}
+# ---------- مقصدها ----------
 _DESTS: dict = {"list": [], "active": 0}
 
 def _load_dests() -> None:
@@ -142,7 +138,6 @@ def set_active_destination(chat_id: int) -> bool:
     return False
 
 def get_active_destination(*_args, **_kwargs) -> int:
-    """ID مقصد فعال (سازگار با امضای قدیمی که اشتباهی آرگومان می‌دادند)."""
     _load_dests()
     return int(_DESTS.get("active") or 0)
 

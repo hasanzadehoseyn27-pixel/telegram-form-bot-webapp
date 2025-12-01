@@ -178,39 +178,46 @@ async def on_start(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
 
-# ====== منوی مدیریتی ساده ======
+# ====== سوئیچ به پنل مدیریتی (ReplyKeyboard) ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
 async def open_admin_menu(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("این بخش فقط برای ادمین‌هاست.")
         return
-    await message.answer("پنل مدیریتی:", reply_markup=None)
-    await message.answer("یک گزینه را انتخاب کنید:", reply_markup=admin_menu_kb())
+    # فقط کیبورد پایین چت را عوض می‌کنیم؛ هیچ دکمه شیشه‌ای وسط چت نیست
+    await message.answer("پنل مدیریتی:\nیک گزینه را انتخاب کنید:", reply_markup=admin_menu_kb())
 
-@router.callback_query(F.data == "admin:list")
-async def admin_list_cb(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        await call.answer("دسترسی ندارید.", show_alert=True); return
+# بازگشت از پنل مدیریتی به منوی اصلی
+@router.message(F.text == "🔙 بازگشت")
+async def admin_back_to_main(message: types.Message):
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
+    await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
+
+# ====== عملیات پنل مدیریتی (متنی، بدون inline) ======
+@router.message(F.text == "📋 لیست ادمین‌ها")
+async def admin_list_msg(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
     admins = list_admins()
     txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
-    await call.message.answer(txt)
-    await call.answer()
+    await message.answer(txt)
 
-@router.callback_query(F.data == "admin:add")
-async def admin_add_cb(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        await call.answer("دسترسی ندارید.", show_alert=True); return
-    ADMIN_WAIT_INPUT[call.from_user.id] = {"mode": "add"}
-    await call.message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
-    await call.answer()
+@router.message(F.text == "➕ افزودن ادمین")
+async def admin_add_msg(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "add"}
+    await message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
 
-@router.callback_query(F.data == "admin:remove")
-async def admin_remove_cb(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        await call.answer("دسترسی ندارید.", show_alert=True); return
-    ADMIN_WAIT_INPUT[call.from_user.id] = {"mode": "remove"}
-    await call.message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
-    await call.answer()
+@router.message(F.text == "🗑 حذف ادمین")
+async def admin_remove_msg(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
+    await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
 
 @router.message(F.text.regexp(r"^\d{4,}$"))
 async def admin_id_input(message: types.Message):

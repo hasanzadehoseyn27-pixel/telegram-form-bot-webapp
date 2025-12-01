@@ -3,25 +3,42 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton
 )
 
+# --- کیبورد اصلی (حالت عادی) ---
 def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
+    """
+    پایین چت:
+    [📝 فرم ثبت آگهی]   [⚙️ پنل مدیریتی] (فقط برای ادمین)
+    """
     row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
     if is_admin:
         row.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
+# --- کیبورد پنل مدیریتی (Reply Keyboard) ---
+def admin_menu_kb() -> ReplyKeyboardMarkup:
+    """
+    جایگزین کیبورد اصلی وقتی ادمین روی «⚙️ پنل مدیریتی» می‌زند:
+    [📋 لیست ادمین‌ها]  [➕ افزودن ادمین]
+    [🗑 حذف ادمین]       [🔙 بازگشت]
+    """
+    row1 = [
+        KeyboardButton(text="📋 لیست ادمین‌ها"),
+        KeyboardButton(text="➕ افزودن ادمین"),
+    ]
+    row2 = [
+        KeyboardButton(text="🗑 حذف ادمین"),
+        KeyboardButton(text="🔙 بازگشت"),
+    ]
+    return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)
+
+# --- دکمه انتشار برای کاربر (همان قبلی، INLINE) ---
 def user_finish_kb(token: str) -> InlineKeyboardMarkup:
     # کاربر بعد از ارسال عکس‌ها با این دکمه پست را منتشر می‌کند
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📣 انتشار در گروه", callback_data=f"finish:{token}")]
     ])
 
-def admin_menu_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 لیست ادمین‌ها", callback_data="admin:list")],
-        [InlineKeyboardButton(text="➕ افزودن ادمین", callback_data="admin:add")],
-        [InlineKeyboardButton(text="🗑 حذف ادمین", callback_data="admin:remove")],
-    ])
-
+# --- کیبورد بررسی برای ادمین‌ها (همان قبلی، INLINE) ---
 def admin_review_kb(token: str) -> InlineKeyboardMarkup:
     row1 = [
         InlineKeyboardButton(text="✏️ ویرایش قیمت", callback_data=f"edit_price:{token}"),
