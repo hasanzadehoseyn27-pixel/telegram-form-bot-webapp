@@ -18,11 +18,11 @@ def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
 def admin_menu_kb() -> ReplyKeyboardMarkup:
     """
     جایگزین کیبورد اصلی وقتی ادمین روی «⚙️ پنل مدیریتی» می‌زند:
-    [📋 لیست ادمین‌ها]  [➕ افزودن ادمین]
+    [📋 bbb ادمین‌ها]  [➕ افزودن ادمین]
     [🗑 حذف ادمین]       [🔙 بازگشت]
     """
     row1 = [
-        KeyboardButton(text="📋 لیست ادمین‌ها"),
+        KeyboardButton(text="📋 ddd ادمین‌ها"),
         KeyboardButton(text="➕ افزودن ادمین"),
     ]
     row2 = [
