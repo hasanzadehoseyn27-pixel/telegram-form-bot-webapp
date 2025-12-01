@@ -242,7 +242,20 @@
               />
               <div class="err" id="e_price"></div>
             </div>
-            <div></div>
+
+            <!-- شماره تماس (اجباری) -->
+            <div>
+              <label>شماره تماس *</label>
+              <input
+                id="phone"
+                inputmode="tel"
+                placeholder="مثلاً: 09123456789"
+              />
+              <div class="muted">
+                فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)
+              </div>
+              <div class="err" id="e_phone"></div>
+            </div>
           </div>
 
           <label style="margin-top: 10px"
@@ -382,7 +395,7 @@
         $("#e_" + id).textContent = msg || "";
       }
       function clearErrors() {
-        ["car", "year", "color", "km", "price", "ins"].forEach((k) =>
+        ["car", "year", "color", "km", "price", "ins", "phone"].forEach((k) =>
           setErr(k, "")
         );
       }
@@ -398,6 +411,7 @@
           gear: $("#gear").value,
           price: $("#price").value.trim(), // میلیون با اعشار ۱ رقمی
           desc: $("#desc").value.trim(),
+          phone: $("#phone").value.trim(),
         };
       }
 
@@ -435,6 +449,13 @@
             ok = false;
           }
         }
+
+        // ولیدیشن شماره تماس
+        if (hasPersianDigits(p.phone) || !/^09\d{9}$/.test(p.phone)) {
+          setErr("phone", "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.");
+          ok = false;
+        }
+
         const m = normalizeMillion(p.price);
         const reqPrice = p.category !== "فروش همکاری";
         if (reqPrice) {
@@ -472,6 +493,7 @@
 مهلت بیمه (ماه): ${insText}
 کارکرد: ${p.km}
 قیمت: ${priceText}
+شماره تماس: ${p.phone}
 توضیحات:
 ${p.desc || "—"}`;
         dlg.style.display = "flex";

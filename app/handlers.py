@@ -18,7 +18,9 @@ from .storage import (
     next_daily_number,
     list_admins, add_admin, remove_admin, is_admin,
     is_owner,
+    add_destination,
     list_access_for_admin, add_access_for_admin, remove_access_for_admin,
+    get_accessible_chats_for_admin,
 )
 
 router = Router()
@@ -139,8 +141,7 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
     lrm_number = "\u200e09127475355\u200e"
 
     parts = [
-        f"⏱️ <b>شماره آگهی: {number}</b>",
-        # «آگهی جدید» عمداً حذف شد
+        f"⏱️ <b>شماره آگهی: #{number}</b>",
         f"🏷️ <b>نام خودرو:</b> {html.quote(form['car'])}",
         f"📅 <b>سال ساخت:</b> {html.quote(form['year'])}",
         f"🎨 <b>رنگ:</b> {html.quote(form['color'])}",
@@ -155,7 +156,7 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
     if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
 
-    # خط تماس: نام در راست و شماره در چپِ خط (با LRM)
+    # خط تماس ثابت برای کانال‌ها (شماره‌ی مالک نمایش داده می‌شود، نه شماره‌ی ثبت‌کننده فرم)
     parts.append(f"☎️ <b>تماس:</b>\nکیوان  —  {lrm_number}")
 
     # تاریخ انتهای کپشن
@@ -163,17 +164,55 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
     return "\n".join(parts)
 
 
-def admin_caption(form: dict, number: int, jdate: str) -> str:
+def admin_caption(
+    form: dict,
+    number: int,
+    jdate: str,
+    *,
+    phone: str | None = None,
+    username: str | None = None,
+    include_contact: bool = False,
+) -> str:
+    """
+    متن خلاصه برای ادمین‌ها.
+    اگر include_contact=True باشد، بالای متن، شماره تماس و username کاربر را نشان می‌دهد.
+    """
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
-    lines = ["🧪 <b>موارد نیازمند ویرایش/تایید:</b>"]
+
+    lines: list[str] = []
+
+    if include_contact:
+        # شماره تماس
+        if phone:
+            lines.append(f"📞 {html.quote(phone)}")
+        else:
+            lines.append("📞 —")
+
+        # username
+        uname = username or ""
+        if uname:
+            if not uname.startswith("@"):
+                uname = "@" + uname
+            lines.append(f"👤 {html.quote(uname)}")
+        else:
+            lines.append("👤 بدون نام کاربری")
+
+        lines.append("")  # خط خالی بین اطلاعات تماس و بقیه متن
+
+    lines.append("🧪 <b>موارد نیازمند ویرایش/تایید:</b>")
     lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
     lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
     lines.append("—" * 10)
     lines.append("📋 <b>خلاصه آگهی</b>")
     lines.append(f"دسته: {html.quote(form['category'])}")
     lines.append(f"نام خودرو: {html.quote(form['car'])}")
-    lines.append(f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km")
-    lines.append(f"بیمه/گیربکس: {html.quote(ins_text)} / {html.quote(form.get('gear') or '—')}")
+    lines.append(
+        f"سال/رنگ/کارکرد: {html.quote(form['year'])} / "
+        f"{html.quote(form['color'])} / {html.quote(form['km'])}km"
+    )
+    lines.append(
+        f"بیمه/گیربکس: {html.quote(ins_text)} / {html.quote(form.get('gear') or '—')}"
+    )
     lines.append(f"\n🗓️ <i>{jdate}</i>  •  ⏱️ <b>#{number}</b>")
     return "\n".join(lines)
 
@@ -241,7 +280,7 @@ async def access_manage_entry(message: types.Message):
         "آیدی عددی ادمینی که می‌خواهید دسترسی‌هایش را تنظیم کنید ارسال کنید."
     )
 
-# ====== ورودی عددی (هم برای افزودن/حذف ادمین، هم انتخاب ادمین هدف در مدیریت دسترسی) ======
+# ====== ورودی عددی (ادمین‌ها + انتخاب ادمین هدف برای مدیریت دسترسی) ======
 @router.message(F.text.regexp(r"^\d{4,}$"))
 async def admin_id_input_or_access(message: types.Message):
     uid_from = message.from_user.id
@@ -298,7 +337,6 @@ def _extract_chat_reference(text: str) -> str | None:
     slug = m.group(1)
     slug = slug.split("?")[0]
     # اگر با + شروع شود احتمالاً لینک دعوت است؛
-    # برخی کلاینت‌ها آن را قبول می‌کنند، سعی می‌کنیم عین خود لینک را بدهیم.
     if slug.startswith("+") or slug.startswith("joinchat/"):
         return t
     # در غیر این صورت یوزرنیم عمومی است
@@ -365,9 +403,15 @@ async def access_manage_flow(message: types.Message):
         if cid is not None:
             ok = add_access_for_admin(target_admin, cid)
             if ok:
-                await message.reply(f"chat_id={cid} به لیست دسترسی‌های ادمین {target_admin} اضافه شد.")
+                await message.reply(
+                    f"chat_id={cid} به لیست دسترسی‌های ادمین {target_admin} اضافه شد."
+                )
             else:
-                await message.reply("این chat_id قبلاً در لیست دسترسی‌های این ادمین بوده است.")
+                await message.reply(
+                    "این chat_id قبلاً در لیست دسترسی‌های این ادمین بوده است."
+                )
+            # این مقصد را در لیست کلی مقصدها هم ثبت کنیم
+            add_destination(cid, "")
             return
 
     # در غیر این صورت، فرض می‌کنیم لینک/یوزرنیم است و سعی می‌کنیم با get_chat آیدی را بگیریم
@@ -394,6 +438,9 @@ async def access_manage_flow(message: types.Message):
         return
 
     ok = add_access_for_admin(target_admin, cid)
+    # این مقصد را در لیست کلی مقصدها هم ثبت کنیم
+    add_destination(cid, title)
+
     if ok:
         await message.reply(
             f"دسترسی جدید ثبت شد ✅\n"
@@ -431,10 +478,19 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
     ins = (payload.get("insurance") or "").strip()
     gear = (payload.get("gear") or "").strip()
     desc = (payload.get("desc") or "").strip()
+    phone = (payload.get("phone") or "").strip()
 
-    if contains_persian_digits(car) or contains_persian_digits(year) or contains_persian_digits(km) or contains_persian_digits(ins):
+    # چک اعداد فارسی در فیلدهای عددی
+    if (
+        contains_persian_digits(car)
+        or contains_persian_digits(year)
+        or contains_persian_digits(km)
+        or contains_persian_digits(ins)
+        or contains_persian_digits(phone)
+    ):
         return False, "لطفاً اعداد را فقط با رقم‌های لاتین (0-9) وارد کنید.", None
 
+    # ولیدیشن فیلدها
     if not car or len(car) > 10 or re.search(r"\d{5,}", car):
         return False, "نام خودرو نامعتبر است.", None
     if not re.fullmatch(r"[0-9]{4}", year):
@@ -445,6 +501,10 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
         return False, "کارکرد باید عددی لاتین حداکثر ۶ رقمی باشد.", None
     if ins and not re.fullmatch(r"[0-9]{1,2}", ins):
         return False, "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.", None
+
+    # شماره تماس (اجباری، فرمت 09xxxxxxxxx)
+    if not re.fullmatch(r"09\d{9}", phone):
+        return False, "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.", None
 
     ok_num, toman = _price_million_to_toman_str(price_raw)
     if not ok_num:
@@ -473,6 +533,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
         "desc": desc,
         "price_num": price_num,
         "price_words": price_words_str,
+        "phone": phone,
         "username": "",
         "photos": [],
     }
@@ -537,8 +598,13 @@ async def on_photo(message: types.Message):
             reply_markup=user_finish_kb(token),
         )
 
-# ====== انتشار اولیه ======
+# ====== انتشار اولیه (پیش‌نمایش در کانال اصلی) ======
 async def publish_to_destination(bot: Bot, form: dict, *, show_price: bool, show_desc: bool):
+    """
+    مرحله‌ی «انتشار اولیه»:
+      - فقط در کانال پیش‌فرض (TARGET_GROUP_ID) یک پست اولیه می‌زند.
+      - در مرحله‌ی «اعمال روی پست گروه»، روی همه‌ی کانال‌های مجاز ادیت/ارسال انجام می‌شود.
+    """
     number, iso = next_daily_number()
     j = to_jalali(iso)
     caption = build_caption(form, number, j, show_price=show_price, show_desc=show_desc)
@@ -575,10 +641,19 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
     if not recipients:
         return 0
 
-    cap = admin_caption(form, grp.get("number"), grp.get("jdate"))
     ok = 0
     for admin_id in recipients:
         try:
+            include_contact = is_owner(admin_id)
+            cap = admin_caption(
+                form,
+                grp.get("number"),
+                grp.get("jdate"),
+                phone=form.get("phone"),
+                username=form.get("username"),
+                include_contact=include_contact,
+            )
+
             if photos:
                 mg = MediaGroupBuilder()
                 mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
@@ -613,7 +688,7 @@ async def cb_finish(call: types.CallbackQuery):
 
     form = data["form"]
 
-    # انتشار اولیه
+    # انتشار اولیه (فقط کانال اصلی)
     show_price = form["category"] != "فروش همکاری"
     show_desc = False
     grp = await publish_to_destination(call.bot, form, show_price=show_price, show_desc=show_desc)
@@ -709,7 +784,7 @@ async def on_admin_text_edit(message: types.Message):
     # 2) آپدیت پنل همه ادمین‌ها
     await refresh_admin_panels(message.bot, token)
 
-# ====== اعمال نهایی ======
+# ====== اعمال نهایی (ارسال به همه کانال‌های مجاز آن ادمین) ======
 @router.callback_query(F.data.startswith("publish:"))
 async def cb_publish(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
@@ -735,25 +810,51 @@ async def cb_publish(call: types.CallbackQuery):
     show_desc = not needs.get("desc", False) or bool(form.get("desc"))
 
     caption = build_caption(form, number, jdate, show_price=show_price, show_desc=show_desc)
+    photos = form.get("photos") or []
 
-    try:
-        if grp.get("has_photos"):
-            await call.bot.edit_message_caption(
-                chat_id=grp["chat_id"],
-                message_id=grp["msg_id"],
-                caption=caption,
-                parse_mode="HTML",
-            )
-        else:
-            await call.bot.edit_message_text(
-                chat_id=grp["chat_id"],
-                message_id=grp["msg_id"],
-                text=caption,
-                parse_mode="HTML",
-            )
-    except Exception:
-        await call.answer("خطا در ویرایش پست گروه.", show_alert=True)
+    # کانال‌های مجاز این ادمین
+    target_chats = get_accessible_chats_for_admin(call.from_user.id)
+    if not target_chats:
+        await call.answer(
+            "برای شما هیچ کانال/گروه مجازی ثبت نشده است.\n"
+            "از OWNER بخواهید در «⚡ مدیریت دسترسی» برای شما مقصد تعریف کند.",
+            show_alert=True,
+        )
         return
+
+    # روی همه‌ی کانال‌های مجاز ارسال/ادیت می‌کنیم
+    for cid in target_chats:
+        try:
+            cid = int(cid)
+            if grp and grp.get("chat_id") == cid:
+                # روی پست اولیه‌ی همان کانال ادیت می‌کنیم
+                if grp.get("has_photos"):
+                    await call.bot.edit_message_caption(
+                        chat_id=grp["chat_id"],
+                        message_id=grp["msg_id"],
+                        caption=caption,
+                        parse_mode="HTML",
+                    )
+                else:
+                    await call.bot.edit_message_text(
+                        chat_id=grp["chat_id"],
+                        message_id=grp["msg_id"],
+                        text=caption,
+                        parse_mode="HTML",
+                    )
+            else:
+                # کانال جدید: پست تازه
+                if photos:
+                    mg = MediaGroupBuilder()
+                    mg.add_photo(media=photos[0], caption=caption, parse_mode="HTML")
+                    for fid in photos[1:MAX_PHOTOS]:
+                        mg.add_photo(media=fid)
+                    await call.bot.send_media_group(cid, media=mg.build())
+                else:
+                    await call.bot.send_message(cid, caption, parse_mode="HTML")
+        except Exception:
+            # اگر روی یک کانال خطا خورد، بقیه را همچنان تلاش می‌کنیم
+            continue
 
     # غیرفعال‌سازی کیبورد و نوشتن وضعیت برای همه پنل‌ها
     for chat_id, msg_id in (info.get("admin_msgs") or []):
