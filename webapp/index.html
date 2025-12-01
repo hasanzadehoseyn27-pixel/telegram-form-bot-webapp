@@ -44,6 +44,7 @@
         font-size: 20px;
         text-align: center;
       }
+
       .tabs {
         display: flex;
         gap: 10px;
@@ -52,16 +53,23 @@
       .tab {
         flex: 1;
         text-align: center;
-        padding: 10px;
+        padding: 10px 12px;
         border-radius: 12px;
         background: #0e1628;
         border: 1px solid var(--line);
         cursor: pointer;
+        /* وسط‌چینی عمودی واقعی حتی وقتی دوخطی می‌شود */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        line-height: 1.3;
       }
       .tab.active {
         background: #16243d;
         border-color: var(--accent);
       }
+
       .section {
         background: #0e1628;
         border: 1px solid var(--line);
@@ -135,6 +143,7 @@
         background: var(--accent);
         color: #052e16;
       }
+
       .dialog {
         position: fixed;
         inset: 0;
@@ -161,6 +170,7 @@
         border-radius: 12px;
         padding: 10px;
       }
+
       @media (max-width: 560px) {
         .grid {
           grid-template-columns: 1fr;
@@ -177,6 +187,7 @@
           <div class="tab active" data-cat="فروش">فروش</div>
           <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
           <div class="tab" data-cat="خرید">خرید</div>
+          <div class="tab" data-cat="صفر">صفر</div>
         </div>
 
         <div class="section">
@@ -242,11 +253,23 @@
               />
               <div class="err" id="e_price"></div>
             </div>
-            <div></div>
+
+            <div>
+              <label>شماره تماس *</label>
+              <input
+                id="phone"
+                inputmode="tel"
+                placeholder="مثلاً: 09123456789"
+              />
+              <div class="muted">
+                فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)
+              </div>
+              <div class="err" id="e_phone"></div>
+            </div>
           </div>
 
-          <label style="margin-top: 10px"
-            >توضیحات
+          <label style="margin-top: 10px">
+            توضیحات
             <span class="muted"
               >(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span
             >
@@ -289,7 +312,6 @@
       const $ = (s) => document.querySelector(s);
 
       let category = "فروش";
-
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -303,11 +325,8 @@
         };
       });
 
-      // تشخیص اعداد فارسی
       const hasPersianDigits = (s) =>
         /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
-
-      // ---- نمایش درست از ورودیِ «میلیون تومان» (با اعشار) ----
       function normalizeMillion(v) {
         return (v ?? "")
           .toString()
@@ -315,31 +334,27 @@
           .replace(/[^\d.]/g, "");
       }
       function formatPriceFromMillionsText(str) {
-        const raw = normalizeMillion(str);
-        const m = parseFloat(raw);
+        const raw = normalizeMillion(str),
+          m = parseFloat(raw);
         if (!isFinite(m) || m <= 0) return "";
-        const CAP = 100_000; // حداکثر 100 میلیارد = 100000 میلیون
-        let x = Math.min(m, CAP); // بر حسب میلیون
-
-        const bil = Math.floor(x / 1000); // هر 1000 میلیون = 1 میلیارد
-        const rest = +(x - bil * 1000).toFixed(3); // باقی‌مانده (میلیون)
-
+        const CAP = 100_000;
+        let x = Math.min(m, CAP);
+        const bil = Math.floor(x / 1000);
+        const rest = +(x - bil * 1000).toFixed(3);
         const parts = [];
         if (bil > 0) {
           parts.push(`${bil} میلیارد`);
-          const remM = Math.round(rest * 1000); // 0.8 => 800 میلیون
+          const remM = Math.round(rest * 1000);
           if (remM > 0) parts.push(`${remM} میلیون`);
         } else {
           const wholeM = Math.floor(x);
           const fracM = +(x - wholeM).toFixed(3);
           if (wholeM > 0) parts.push(`${wholeM} میلیون`);
-          const thousands = Math.round(fracM * 1000); // 0.5 => 500 هزار
+          const thousands = Math.round(fracM * 1000);
           if (thousands > 0) parts.push(`${thousands} هزار`);
         }
         return parts.join(" و ") + " تومان";
       }
-
-      // تومان‌نویس سراسری (برای ارسال/پیش‌نمایش اگر لازم شد)
       function priceWordsRaw(n) {
         if (!n) return "";
         if (n > 100_000_000_000) n = 100_000_000_000;
@@ -362,8 +377,6 @@
         if (n > 0) parts.push(n + "");
         return parts.join(" و ") + " تومان";
       }
-
-      // تبدیل «میلیون» (با اعشار یک‌رقمی) به تومان عدد صحیح برای ارسال
       const millionToToman = (v) => {
         const s = normalizeMillion(v);
         if (!/^\d{1,5}(\.\d)?$/.test(s)) return 0;
@@ -371,7 +384,6 @@
         return Math.round(f * 1_000_000);
       };
 
-      // Hint بالای فیلد قیمت
       $("#price").addEventListener("input", () => {
         $("#price_hint").textContent = formatPriceFromMillionsText(
           $("#price").value
@@ -382,7 +394,7 @@
         $("#e_" + id).textContent = msg || "";
       }
       function clearErrors() {
-        ["car", "year", "color", "km", "price", "ins"].forEach((k) =>
+        ["car", "year", "color", "km", "price", "ins", "phone"].forEach((k) =>
           setErr(k, "")
         );
       }
@@ -396,15 +408,15 @@
           km: $("#km").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(), // میلیون با اعشار ۱ رقمی
+          price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
+          phone: $("#phone").value.trim(),
         };
       }
 
       function validate(p) {
         clearErrors();
         let ok = true;
-
         if (
           hasPersianDigits(p.car) ||
           /\d{5,}/.test(p.car) ||
@@ -426,17 +438,19 @@
           setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
           ok = false;
         }
-        if (p.insurance) {
-          if (
-            hasPersianDigits(p.insurance) ||
-            !/^[0-9]{1,2}$/.test(p.insurance)
-          ) {
-            setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
-            ok = false;
-          }
+        if (
+          p.insurance &&
+          (hasPersianDigits(p.insurance) || !/^[0-9]{1,2}$/.test(p.insurance))
+        ) {
+          setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
+          ok = false;
         }
-        const m = normalizeMillion(p.price);
-        const reqPrice = p.category !== "فروش همکاری";
+        if (hasPersianDigits(p.phone) || !/^09\d{9}$/.test(p.phone)) {
+          setErr("phone", "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.");
+          ok = false;
+        }
+        const m = normalizeMillion(p.price),
+          reqPrice = p.category !== "فروش همکاری";
         if (reqPrice) {
           if (!/^\d{1,5}(\.\d)?$/.test(m)) {
             setErr(
@@ -463,7 +477,6 @@
               : "—"
             : formatPriceFromMillionsText(p.price) || "—";
         const insText = p.insurance ? p.insurance + " ماه" : "—";
-
         $("#preview").textContent = `دسته: ${p.category}
 نام خودرو: ${p.car}
 سال: ${p.year}
@@ -472,6 +485,7 @@
 مهلت بیمه (ماه): ${insText}
 کارکرد: ${p.km}
 قیمت: ${priceText}
+شماره تماس: ${p.phone}
 توضیحات:
 ${p.desc || "—"}`;
         dlg.style.display = "flex";

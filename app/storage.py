@@ -1,36 +1,66 @@
+# app/storage.py
 from __future__ import annotations
 import json
 from pathlib import Path
 from datetime import date
 
+# ==========================
+#  مسیر داده‌ها (سازگار با لیارا)
+# ==========================
+# /usr/src/app و /var/lib معمولاً read-only هستند؛ /tmp قابل‌نوشتن است.
+DATA = Path("/tmp/bank_khodro_bot")
+DATA.mkdir(parents=True, exist_ok=True)
 # مسیر داده‌ها – تنها مسیر قابل نوشتن در لیارا (Python Runtime)
 DATA = Path("/tmp/bot_data")
 DATA.mkdir(parents=True, exist_ok=True)
 
-DAILY_FILE = DATA / "daily.json"
-ADMINS_FILE = DATA / "admins.json"
-DESTS_FILE = DATA / "destinations.json"
+DAILY_FILE = DATA / "daily.json"            # شمارنده‌ی سراسری آگهی
+ADMINS_FILE = DATA / "admins.json"          # لیست ادمین‌ها (ایدی عددی)
+DESTS_FILE = DATA / "destinations.json"     # لیست مقصدها (برای سازگاری قدیمی)
+ALLOWED_FILE = DATA / "allowed_channels.json"  # فقط لیست کانال/گروه‌های مجاز ربات (ایدی عددی)
 
-# ---------- شماره روزانه ----------
+# ==========================
+#  شماره آگهی (سراسری و بدون ریست روزانه)
+# ==========================
 def next_daily_number() -> tuple[int, str]:
+    """
+    شمارنده‌ی سراسری آگهی:
+      - از ۱ تا بی‌نهایت بالا می‌رود
+      - با عوض شدن روز، ریست نمی‌شود
+    ساختار DAILY_FILE:
+      {"date": "2025-12-01", "num": 123}
+    """
     today = date.today().isoformat()
     data = {"date": today, "num": 0}
+
     if DAILY_FILE.exists():
         try:
-            data = json.loads(DAILY_FILE.read_text(encoding="utf-8"))
+            data = json.loads(DAILY_FILE.read_text(encoding="utf-8")) or {}
         except Exception:
             data = {"date": today, "num": 0}
-    if data.get("date") != today:
-        data = {"date": today, "num": 0}
+
     data["num"] = int(data.get("num", 0)) + 1
-    DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    data["date"] = today
+    try:
+        DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
     return data["num"], today
 
-# ---------- ادمین‌ها ----------
+# ==========================
+#  ادمین‌ها
+# ==========================
 _ADMIN_SET: set[int] = set()
 _OWNER_ID: int = 0
 
 def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
+    """
+    در شروع برنامه:
+      - ادمین‌های داخل .env (ADMIN_IDS)
+      - ادمین‌های ذخیره‌شده در فایل
+      - OWNER_ID
+    را با هم merge می‌کنیم.
+    """
     global _ADMIN_SET, _OWNER_ID
     _OWNER_ID = int(owner_id or 0)
 
@@ -47,7 +77,13 @@ def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
     _persist_admins()
 
 def _persist_admins() -> None:
-    ADMINS_FILE.write_text(json.dumps(sorted(_ADMIN_SET), ensure_ascii=False), encoding="utf-8")
+    try:
+        ADMINS_FILE.write_text(
+            json.dumps(sorted(_ADMIN_SET), ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 def list_admins() -> list[int]:
     return sorted(_ADMIN_SET)
@@ -73,7 +109,17 @@ def remove_admin(uid: int) -> bool:
 def is_admin(uid: int) -> bool:
     return int(uid) in _ADMIN_SET
 
-# ---------- مقصدها ----------
+def get_owner_id() -> int:
+    return _OWNER_ID
+
+def is_owner(uid: int) -> bool:
+    return int(uid) == _OWNER_ID
+
+# ==========================
+#  مقصدها (سازگاری با کد قدیمی)
+# ==========================
+# ساختار DESTS_FILE:
+# {"list":[{"id":-1001,"title":"گروه A"}, …], "active":-1001}
 _DESTS: dict = {"list": [], "active": 0}
 
 def _load_dests() -> None:
@@ -87,7 +133,10 @@ def _load_dests() -> None:
         _DESTS = {"list": [], "active": 0}
 
 def _save_dests() -> None:
-    DESTS_FILE.write_text(json.dumps(_DESTS, ensure_ascii=False), encoding="utf-8")
+    try:
+        DESTS_FILE.write_text(json.dumps(_DESTS, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 def bootstrap_destinations(default_id: int, default_title: str = "") -> None:
     _load_dests()
@@ -96,10 +145,6 @@ def bootstrap_destinations(default_id: int, default_title: str = "") -> None:
     if not _DESTS.get("active") and default_id:
         _DESTS["active"] = int(default_id)
     _save_dests()
-
-def list_destinations() -> list[dict]:
-    _load_dests()
-    return list(_DESTS.get("list", []))
 
 def add_destination(chat_id: int, title: str = "") -> bool:
     _load_dests()
@@ -116,26 +161,9 @@ def add_destination(chat_id: int, title: str = "") -> bool:
     _save_dests()
     return True
 
-def remove_destination(chat_id: int) -> bool:
+def list_destinations() -> list[dict]:
     _load_dests()
-    cid = int(chat_id)
-    before = len(_DESTS["list"])
-    _DESTS["list"] = [x for x in _DESTS["list"] if int(x.get("id")) != cid]
-    if _DESTS.get("active") == cid:
-        _DESTS["active"] = _DESTS["list"][0]["id"] if _DESTS["list"] else 0
-    changed = len(_DESTS["list"]) != before
-    if changed:
-        _save_dests()
-    return changed
-
-def set_active_destination(chat_id: int) -> bool:
-    _load_dests()
-    cid = int(chat_id)
-    if any(int(x.get("id")) == cid for x in _DESTS["list"]):
-        _DESTS["active"] = cid
-        _save_dests()
-        return True
-    return False
+    return list(_DESTS.get("list", []))
 
 def get_active_destination(*_args, **_kwargs) -> int:
     _load_dests()
@@ -150,3 +178,63 @@ def get_active_id_and_title() -> tuple[int, str]:
             title = it.get("title") or ""
             break
     return aid, title
+
+# ==========================
+#  لیست کانال/گروه‌های مجاز ربات (Allowlist)
+# ==========================
+_ALLOWED_CHANNELS: set[int] = set()
+
+def _load_allowed() -> None:
+    global _ALLOWED_CHANNELS
+    if ALLOWED_FILE.exists():
+        try:
+            ids = json.loads(ALLOWED_FILE.read_text(encoding="utf-8")) or []
+            _ALLOWED_CHANNELS = {int(x) for x in ids if isinstance(x, (int, str))}
+        except Exception:
+            _ALLOWED_CHANNELS = set()
+    else:
+        _ALLOWED_CHANNELS = set()
+
+def _save_allowed() -> None:
+    try:
+        ALLOWED_FILE.write_text(
+            json.dumps(sorted(_ALLOWED_CHANNELS), ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+def bootstrap_allowed_channels(default_channel_id: int | None) -> None:
+    """
+    در شروع برنامه، کانال اصلی (.env) را به‌صورت خودکار در Allowlist ثبت می‌کنیم.
+    """
+    _load_allowed()
+    if default_channel_id:
+        _ALLOWED_CHANNELS.add(int(default_channel_id))
+        _save_allowed()
+
+def list_allowed_channels() -> list[int]:
+    _load_allowed()
+    return sorted(_ALLOWED_CHANNELS)
+
+def is_channel_allowed(chat_id: int) -> bool:
+    _load_allowed()
+    return int(chat_id) in _ALLOWED_CHANNELS
+
+def add_allowed_channel(chat_id: int) -> bool:
+    _load_allowed()
+    cid = int(chat_id)
+    if cid in _ALLOWED_CHANNELS:
+        return False
+    _ALLOWED_CHANNELS.add(cid)
+    _save_allowed()
+    return True
+
+def remove_allowed_channel(chat_id: int) -> bool:
+    _load_allowed()
+    cid = int(chat_id)
+    if cid not in _ALLOWED_CHANNELS:
+        return False
+    _ALLOWED_CHANNELS.remove(cid)
+    _save_allowed()
+    return True
