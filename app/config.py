@@ -29,8 +29,6 @@ def build_bot_and_dispatcher():
     # بوت‌استرپ ادمین‌ها و مقصدها
     storage.bootstrap_admins(initial_env_admins=SETTINGS.ADMIN_IDS, owner_id=SETTINGS.OWNER_ID)
     storage.bootstrap_destinations(default_id=SETTINGS.TARGET_GROUP_ID)
-
-    # مهم: کانال .env را در Allowlist ثبت کن
     storage.bootstrap_allowed_channels(default_channel_id=SETTINGS.TARGET_GROUP_ID)
 
     session = AiohttpSession(proxy=SETTINGS.PROXY_URL) if SETTINGS.PROXY_URL else None

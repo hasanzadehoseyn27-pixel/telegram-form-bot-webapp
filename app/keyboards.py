@@ -22,7 +22,7 @@ def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
         top.append(KeyboardButton(text="📡 مدیریت کانال‌های مجاز"))
     rows = [
         top,
-        [KeyboardButton(text="🔙 بازگشت")]  # تمام‌عرض
+        [KeyboardButton(text="🔙 بازگشت")]
     ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
