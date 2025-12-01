@@ -12,6 +12,10 @@ from .keyboards import (
     start_keyboard,
     admin_review_kb,
     user_finish_kb,
+    # === اضافه‌شده برای پنل مدیریتی ===
+    admin_root_kb,
+    admin_admins_kb,
+    admin_allowed_kb,
 )
 from .storage import (
     next_daily_number,
@@ -210,6 +214,46 @@ async def on_start(message: types.Message):
 async def admin_back_to_main(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
+
+# ====== پنل مدیریتی (ریشه و زیرمنوها) ======
+@router.message(F.text == "⚙️ پنل مدیریتی")
+async def admin_panel_root_msg(message: types.Message):
+    """باز کردن ریشهٔ پنل مدیریتی."""
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    kb = admin_root_kb(is_owner(message.from_user.id))
+    await message.answer("پنل مدیریتی:", reply_markup=kb)
+
+@router.message(F.text == "👤 مدیریت ادمین‌ها")
+async def admin_manage_admins_root(message: types.Message):
+    """ورود به زیرمنوی مدیریت ادمین‌ها."""
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    kb = admin_admins_kb()
+    await message.answer("مدیریت ادمین‌ها:", reply_markup=kb)
+
+@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
+async def admin_manage_allowed_root(message: types.Message):
+    """ورود به زیرمنوی مدیریت کانال‌های مجاز (فقط OWNER)."""
+    if not is_owner(message.from_user.id):
+        await message.answer(
+            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
+            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
+        )
+        return
+    kb = admin_allowed_kb()
+    await message.answer("مدیریت کانال‌ها و گروه‌های مجاز:", reply_markup=kb)
+
+@router.message(F.text == "🔙 بازگشت به پنل")
+async def admin_back_to_panel(message: types.Message):
+    """بازگشت از زیرمنوها به ریشهٔ پنل مدیریتی."""
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    kb = admin_root_kb(is_owner(message.from_user.id))
+    await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
 # ====== مدیریت ادمین‌ها ======
 @router.message(F.text == "📋 لیست ادمین‌ها")

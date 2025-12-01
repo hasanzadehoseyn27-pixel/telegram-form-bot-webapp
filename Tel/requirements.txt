@@ -1,4 +1,0 @@
-aiogram==3.*
-python-dotenv
-aiohttp_socks
-jdatetime
