@@ -1,3 +1,4 @@
+# app/handlers.py
 import json, re
 from uuid import uuid4
 import jdatetime
@@ -9,9 +10,9 @@ from aiogram.utils.media_group import MediaGroupBuilder
 from .config import SETTINGS
 from .keyboards import (
     start_keyboard,
-    admin_menu_kb,      # ریشه پنل مدیریتی
-    admin_admins_kb,    # زیرمنو ادمین‌ها
-    admin_allowed_kb,   # زیرمنو کانال‌های مجاز
+    admin_root_kb,       # ⬅️ جایگزین admin_menu_kb
+    admin_admins_kb,     # زیرمنو ادمین‌ها
+    admin_allowed_kb,    # زیرمنو کانال‌های مجاز
     admin_review_kb,
     user_finish_kb,
 )
@@ -174,7 +175,7 @@ async def on_start(message: types.Message):
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
 
-    # اگر عضو کانال نیست → فقط لینک عضویت (بدون دکمهٔ بازکردن فرم در پیام)
+    # اگر عضو کانال نیست → فقط لینک عضویت
     if not await _user_is_member(message.bot, message.from_user.id):
         join_kb = types.InlineKeyboardMarkup(
             inline_keyboard=[[types.InlineKeyboardButton(text="بانک خودرو", url="https://t.me/tetsbankkhodro")]]
@@ -185,35 +186,41 @@ async def on_start(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
 
-# ====== پنل مدیریتی ======
+# ====== ریشه پنل مدیریتی ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
 async def open_admin_menu(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("این بخش فقط برای ادمین‌هاست.")
         return
-    kb = admin_menu_kb(is_owner(message.from_user.id))
+    kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:\nیک گزینه را انتخاب کنید:", reply_markup=kb)
-
-@router.message(F.text == "👤 مدیریت ادمین‌ها")
-async def open_admins_submenu(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await message.answer("دسترسی ندارید."); return
-    await message.answer("مدیریت ادمین‌ها:", reply_markup=admin_admins_kb())
-
-@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
-async def open_allowed_submenu(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ این بخش فقط برای مدیر اصلی است."); return
-    await message.answer("مدیریت کانال‌های مجاز:", reply_markup=admin_allowed_kb())
-
-@router.message(F.text == "🔙 بازگشت به پنل")
-async def back_to_panel(message: types.Message):
-    await message.answer("بازگشت به پنل مدیریتی.", reply_markup=admin_menu_kb(is_owner(message.from_user.id)))
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
+
+# ====== ورود به زیرمنوها ======
+@router.message(F.text == "👤 مدیریت ادمین‌ها")
+async def go_admins_menu(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    await message.answer("مدیریت ادمین‌ها:", reply_markup=admin_admins_kb())
+
+@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
+async def go_allowed_menu(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ این بخش مخصوص مدیر اصلی است.")
+        return
+    await message.answer("مدیریت کانال‌های مجاز:", reply_markup=admin_allowed_kb())
+
+@router.message(F.text == "🔙 بازگشت به پنل")
+async def back_to_panel(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    await message.answer("بازگشت به پنل مدیریتی.", reply_markup=admin_root_kb(is_owner(message.from_user.id)))
 
 # ====== مدیریت ادمین‌ها ======
 @router.message(F.text == "📋 لیست ادمین‌ها")
@@ -390,18 +397,8 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
 
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
-    # چک عضویت هنگام ارسال فرم هم انجام شود
-    if not await _user_is_member(message.bot, message.from_user.id):
-        join_kb = types.InlineKeyboardMarkup(
-            inline_keyboard=[[types.InlineKeyboardButton(text="بانک خودرو", url="https://t.me/tetsbankkhodro")]]
-        )
-        await message.answer("⛔ ابتدا عضو کانال شوید و سپس دوباره /start را بزنید.", reply_markup=join_kb)
-        return
-
-    try:
-        data = json.loads(message.web_app_data.data or "{}")
-    except Exception:
-        data = {}
+    try: data = json.loads(message.web_app_data.data or "{}")
+    except Exception: data = {}
     ok, err, form = validate_and_normalize(data)
     if not ok:
         await message.answer(err or "داده نامعتبر است."); return
@@ -576,7 +573,7 @@ async def cb_publish(call: types.CallbackQuery):
     caption    = build_caption(form, number, jdate, show_price=show_price, show_desc=show_desc)
     photos     = form.get("photos") or []
 
-    # تلاش برای ادیت؛ در صورت خطا، ارسال جدید (fallback)
+    # تلاش برای ادیت؛ در صورت خطا ارسال جدید
     edited = False
     if grp.get("chat_id") and grp.get("msg_id"):
         try:
@@ -600,7 +597,6 @@ async def cb_publish(call: types.CallbackQuery):
         except Exception:
             await call.answer("خطا در ارسال/ادیت پست.", show_alert=True); return
 
-    # بستن پنل‌ها
     for chat_id, msg_id in (info.get("admin_msgs") or []):
         try:
             await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
