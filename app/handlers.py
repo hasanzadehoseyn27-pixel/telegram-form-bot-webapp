@@ -10,15 +10,14 @@ from aiogram.utils.media_group import MediaGroupBuilder
 from .config import SETTINGS
 from .keyboards import (
     start_keyboard,
-    admin_menu_kb,
-    admin_review_kb,
-    user_finish_kb,
+    admin_root_kb, admin_admins_kb, admin_allowed_kb,
+    admin_review_kb, user_finish_kb,
+    open_form_kb, join_channel_kb,
 )
 from .storage import (
     next_daily_number,
-    list_admins, add_admin, remove_admin, is_admin,
-    is_owner,
-    add_destination,  # فقط برای ثبت عنوان کانال/سازگاری
+    list_admins, add_admin, remove_admin, is_admin, is_owner,
+    add_destination,
     list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     is_channel_allowed,
 )
@@ -27,6 +26,9 @@ router = Router()
 
 # --- تنظیمات داخلی ---
 MAX_PHOTOS = 5
+
+# عضویت اجباری برای کاربران عادی
+REQUIRED_CHANNEL_USERNAME = "@tetsbankkhodro"  # دقیقا همین
 
 # حافظه‌ی موقت
 PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, needs:{price,desc}, admin_msgs:[(chat_id,msg_id), ...]}
@@ -82,6 +84,21 @@ def _parse_admin_price(text: str) -> tuple[bool, int]:
         if 1 <= n <= 100_000_000_000:
             return True, n
     return False, 0
+
+async def _is_member_of_required(bot: Bot, user_id: int) -> bool:
+    """
+    بررسی عضویت کاربر در کانال REQUIRED_CHANNEL_USERNAME.
+    توصیه می‌شود ربات داخل کانال عضو/ادمین باشد تا get_chat_member درست کار کند.
+    """
+    try:
+        chat = await bot.get_chat(REQUIRED_CHANNEL_USERNAME)
+        cm = await bot.get_chat_member(chat.id, user_id)
+        status = getattr(cm, "status", "")
+        # عضویت: creator, administrator, member (restricted هم ممکن است عضو باشد)
+        return status in ("creator", "administrator", "member")
+    except Exception:
+        # اگر چک‌کردن به هر دلیل شکست خورد، کاربر را غیرعضو فرض می‌کنیم.
+        return False
 
 # ====== متن پنل ادیت ادمین ======
 def admin_panel_text(form: dict) -> str:
@@ -181,21 +198,66 @@ async def on_start(message: types.Message):
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
-    await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
+    await message.answer("برای ثبت آگهی، یکی از گزینه‌ها را انتخاب کنید:", reply_markup=kb)
 
-# ====== پنل مدیریتی (ReplyKeyboard) ======
+# دکمهٔ «📝 فرم ثبت آگهی» (چک عضویت → دادن WebApp یا لینک عضویت)
+@router.message(F.text == "📝 فرم ثبت آگهی")
+async def on_form_request(message: types.Message):
+    if not SETTINGS.WEBAPP_URL:
+        await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
+        return
+
+    # ادمین‌ها بدون شرط عضویت
+    if is_admin(message.from_user.id):
+        await message.answer("فرم ثبت آگهی:", reply_markup=None)
+        await message.answer("برای باز کردن فرم، دکمه زیر را بزنید:", reply_markup=open_form_kb(SETTINGS.WEBAPP_URL))
+        return
+
+    # کاربران عادی: باید عضو کانال باشند
+    is_member = await _is_member_of_required(message.bot, message.from_user.id)
+    if is_member:
+        await message.answer("فرم ثبت آگهی:", reply_markup=None)
+        await message.answer("برای باز کردن فرم، دکمه زیر را بزنید:", reply_markup=open_form_kb(SETTINGS.WEBAPP_URL))
+    else:
+        await message.answer(
+            "ابتدا عضو کانال زیر شوید و سپس دوباره «📝 فرم ثبت آگهی» را بزنید:",
+            reply_markup=join_channel_kb(REQUIRED_CHANNEL_USERNAME),
+        )
+
+# ====== پنل مدیریتی ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
 async def open_admin_menu(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("این بخش فقط برای ادمین‌هاست.")
         return
-    kb = admin_menu_kb(is_owner(message.from_user.id))
+    kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:\nیک گزینه را انتخاب کنید:", reply_markup=kb)
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
+
+@router.message(F.text == "🔙 بازگشت به پنل")
+async def back_to_admin_root(message: types.Message):
+    if not is_admin(message.from_user.id):
+        return
+    await message.answer("پنل مدیریتی:", reply_markup=admin_root_kb(is_owner(message.from_user.id)))
+
+# زیرمنوها
+@router.message(F.text == "👤 مدیریت ادمین‌ها")
+async def open_admins_section(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    await message.answer("بخش مدیریت ادمین‌ها:", reply_markup=admin_admins_kb())
+
+@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
+async def open_allowed_section(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
+        return
+    await message.answer("بخش مدیریت کانال‌های مجاز:", reply_markup=admin_allowed_kb())
 
 # ====== مدیریت ادمین‌ها ======
 @router.message(F.text == "📋 لیست ادمین‌ها")
@@ -250,10 +312,8 @@ def _extract_public_tme_username_from_link(text: str) -> str | None:
     if not m:
         return None
     slug = m.group(1).split("?")[0].strip()
-    # رد انواع خصوصی/جوین
     if slug.startswith("+") or slug.startswith("joinchat/") or slug.startswith("c/"):
         return None
-    # فقط نام‌کاربری عمومی
     if not re.fullmatch(r"[A-Za-z0-9_]{5,}", slug):
         return None
     if not slug.startswith("@"):
@@ -297,7 +357,6 @@ async def access_channel_flow(message: types.Message):
     if not st:
         return
     if not is_owner(message.from_user.id):
-        # ایمنی اضافه
         ACCESS_CH_WAIT.pop(message.from_user.id, None)
         await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
@@ -310,7 +369,6 @@ async def access_channel_flow(message: types.Message):
         )
         return
 
-    # تلاش برای گرفتن chat_id از روی یوزرنیم عمومی
     try:
         chat = await message.bot.get_chat(ref)
         cid = chat.id
@@ -323,7 +381,7 @@ async def access_channel_flow(message: types.Message):
     if mode == "add":
         ok = add_allowed_channel(cid)
         if ok:
-            add_destination(cid, title)  # برای ثبت عنوان (اختیاری/سازگاری)
+            add_destination(cid, title)
             await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
         else:
             await message.reply("ℹ️ این کانال/گروه قبلاً در لیست مجاز بود.")

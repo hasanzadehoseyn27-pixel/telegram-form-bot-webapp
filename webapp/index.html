@@ -28,9 +28,7 @@
         color: var(--txt);
         padding: 20px;
       }
-      .wrap {
-        width: min(780px, 96vw);
-      }
+      .wrap { width: min(780px, 96vw); }
       .card {
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid var(--line);
@@ -39,133 +37,51 @@
         padding: 18px 16px;
         box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
       }
-      h1 {
-        margin: 0 0 14px;
-        font-size: 20px;
-        text-align: center;
-      }
-      .tabs {
-        display: flex;
-        gap: 10px;
-        margin: 6px 0 16px;
-      }
+      h1 { margin: 0 0 14px; font-size: 20px; text-align: center; }
+      .tabs { display: flex; gap: 10px; margin: 6px 0 16px; }
       .tab {
-        flex: 1;
-        text-align: center;
-        padding: 10px;
-        border-radius: 12px;
-        background: #0e1628;
-        border: 1px solid var(--line);
+        flex: 1; text-align: center; padding: 10px;
+        border-radius: 12px; background: #0e1628; border: 1px solid var(--line);
         cursor: pointer;
       }
-      .tab.active {
-        background: #16243d;
-        border-color: var(--accent);
-      }
+      .tab.active { background: #16243d; border-color: var(--accent); }
       .section {
-        background: #0e1628;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 14px;
+        background: #0e1628; border: 1px solid var(--line);
+        border-radius: 14px; padding: 14px;
       }
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px;
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .grid > div { display: flex; flex-direction: column; }
+      label { display: block; margin-bottom: 6px; }
+      input, select, textarea {
+        width: 100%; padding: 12px 14px; border-radius: 12px;
+        border: 1px solid var(--line); background: #0b1526; color: var(--txt);
+        outline: none; font-size: 15px; min-height: 44px;
       }
-      .grid > div {
-        display: flex;
-        flex-direction: column;
-      }
-      label {
-        display: block;
-        margin-bottom: 6px;
-      }
-      input,
-      select,
-      textarea {
-        width: 100%;
-        padding: 12px 14px;
-        border-radius: 12px;
-        border: 1px solid var(--line);
-        background: #0b1526;
-        color: var(--txt);
-        outline: none;
-        font-size: 15px;
-        min-height: 44px;
-      }
-      select {
-        -webkit-appearance: none;
-        appearance: none;
-      }
-      input:focus,
-      select:focus,
-      textarea:focus {
-        border-color: var(--accent);
-      }
-      textarea {
-        min-height: 100px;
-        resize: vertical;
-      }
-      .muted {
-        color: var(--muted);
-        font-size: 12px;
-        margin-top: 4px;
-      }
-      .err {
-        color: var(--danger);
-        font-size: 12px;
-        margin-top: 6px;
-        min-height: 14px;
-      }
-      .row {
-        display: flex;
-        gap: 10px;
-        margin-top: 14px;
-      }
+      select { -webkit-appearance: none; appearance: none; }
+      input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+      textarea { min-height: 100px; resize: vertical; }
+      .muted { color: var(--muted); font-size: 12px; margin-top: 4px; }
+      .err { color: var(--danger); font-size: 12px; margin-top: 6px; min-height: 14px; }
+      .row { display: flex; gap: 10px; margin-top: 14px; }
       button {
-        flex: 1;
-        padding: 12px 16px;
-        border: none;
-        border-radius: 12px;
-        font-weight: 800;
-        cursor: pointer;
+        flex: 1; padding: 12px 16px; border: none; border-radius: 12px;
+        font-weight: 800; cursor: pointer;
       }
-      .primary {
-        background: var(--accent);
-        color: #052e16;
-      }
+      .primary { background: var(--accent); color: #052e16; }
       .dialog {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.45);
-        display: none;
-        align-items: center;
-        justify-content: center;
+        position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45);
+        display: none; align-items: center; justify-content: center;
       }
       .box {
-        background: #0e1628;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        max-width: 560px;
-        width: 92vw;
-        padding: 16px;
+        background: #0e1628; border: 1px solid var(--line);
+        border-radius: 14px; max-width: 560px; width: 92vw; padding: 16px;
       }
-      .box h3 {
-        margin: 0 0 10px;
-      }
+      .box h3 { margin: 0 0 10px; }
       .preview {
-        white-space: pre-line;
-        color: var(--muted);
-        border: 1px dashed var(--line);
-        border-radius: 12px;
-        padding: 10px;
+        white-space: pre-line; color: var(--muted);
+        border: 1px dashed var(--line); border-radius: 12px; padding: 10px;
       }
-      @media (max-width: 560px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
-      }
+      @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
@@ -177,6 +93,7 @@
           <div class="tab active" data-cat="فروش">فروش</div>
           <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
           <div class="tab" data-cat="خرید">خرید</div>
+          <div class="tab" data-cat="صفر">صفر</div>
         </div>
 
         <div class="section">
@@ -184,9 +101,7 @@
             <div>
               <label>نام خودرو *</label>
               <input id="car" placeholder="حداکثر ۱۰ کاراکتر" />
-              <div class="muted">
-                عدد بیش از ۴ تا پشت‌سرهم مجاز نیست (فقط ارقام لاتین)
-              </div>
+              <div class="muted">عدد بیش از ۴ تا پشت‌سرهم مجاز نیست (فقط ارقام لاتین)</div>
               <div class="err" id="e_car"></div>
             </div>
             <div>
@@ -212,12 +127,7 @@
           <div class="grid">
             <div>
               <label>مهلت بیمه <span class="muted">(به ماه)</span></label>
-              <input
-                id="insurance"
-                inputmode="numeric"
-                maxlength="2"
-                placeholder="مثلاً: 6"
-              />
+              <input id="insurance" inputmode="numeric" maxlength="2" placeholder="مثلاً: 6" />
               <div class="err" id="e_ins"></div>
             </div>
             <div>
@@ -232,37 +142,23 @@
 
           <div class="grid">
             <div>
-              <label
-                >قیمت (میلیون تومان) <span id="price_hint" class="muted"></span
-              ></label>
-              <input
-                id="price"
-                inputmode="decimal"
-                placeholder="مثلاً 50.5 = پنجاه و نیم میلیون"
-              />
+              <label>قیمت (میلیون تومان) <span id="price_hint" class="muted"></span></label>
+              <input id="price" inputmode="decimal" placeholder="مثلاً 50.5 = پنجاه و نیم میلیون" />
               <div class="err" id="e_price"></div>
             </div>
 
             <!-- شماره تماس (اجباری) -->
             <div>
               <label>شماره تماس *</label>
-              <input
-                id="phone"
-                inputmode="tel"
-                placeholder="مثلاً: 09123456789"
-              />
-              <div class="muted">
-                فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)
-              </div>
+              <input id="phone" inputmode="tel" placeholder="مثلاً: 09123456789" />
+              <div class="muted">فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)</div>
               <div class="err" id="e_phone"></div>
             </div>
           </div>
 
-          <label style="margin-top: 10px"
-            >توضیحات
-            <span class="muted"
-              >(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span
-            >
+          <label style="margin-top: 10px">
+            توضیحات
+            <span class="muted">(وضعیت بدنه، شاسی‌ها، موتور و فنی، لاستیک‌ها و ...)</span>
           </label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
 
@@ -273,21 +169,12 @@
       </div>
     </div>
 
-    <!-- پیش‌نمایش -->
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
         <div id="preview" class="preview"></div>
         <div class="row" style="margin-top: 12px">
-          <button
-            id="cancel"
-            class="primary"
-            style="
-              background: #0e1628;
-              border: 1px solid var(--line);
-              color: var(--txt);
-            "
-          >
+          <button id="cancel" class="primary" style="background: #0e1628; border: 1px solid var(--line); color: var(--txt);">
             برگشت
           </button>
           <button id="confirm" class="primary">تایید و ارسال</button>
@@ -305,9 +192,7 @@
 
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
-          document
-            .querySelectorAll(".tab")
-            .forEach((x) => x.classList.remove("active"));
+          document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
           $("#price").value = "";
@@ -316,43 +201,34 @@
         };
       });
 
-      // تشخیص اعداد فارسی
-      const hasPersianDigits = (s) =>
-        /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
+      const hasPersianDigits = (s) => /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
 
-      // ---- نمایش درست از ورودیِ «میلیون تومان» (با اعشار) ----
       function normalizeMillion(v) {
-        return (v ?? "")
-          .toString()
-          .replace(/[,\u066B]/g, ".")
-          .replace(/[^\d.]/g, "");
+        return (v ?? "").toString().replace(/[,\u066B]/g, ".").replace(/[^\d.]/g, "");
       }
       function formatPriceFromMillionsText(str) {
         const raw = normalizeMillion(str);
         const m = parseFloat(raw);
         if (!isFinite(m) || m <= 0) return "";
-        const CAP = 100_000; // حداکثر 100 میلیارد = 100000 میلیون
-        let x = Math.min(m, CAP); // بر حسب میلیون
-
-        const bil = Math.floor(x / 1000); // هر 1000 میلیون = 1 میلیارد
-        const rest = +(x - bil * 1000).toFixed(3); // باقی‌مانده (میلیون)
-
+        const CAP = 100_000; // 100 میلیارد
+        let x = Math.min(m, CAP);
+        const bil = Math.floor(x / 1000);
+        const rest = +(x - bil * 1000).toFixed(3);
         const parts = [];
         if (bil > 0) {
           parts.push(`${bil} میلیارد`);
-          const remM = Math.round(rest * 1000); // 0.8 => 800 میلیون
+          const remM = Math.round(rest * 1000);
           if (remM > 0) parts.push(`${remM} میلیون`);
         } else {
           const wholeM = Math.floor(x);
           const fracM = +(x - wholeM).toFixed(3);
           if (wholeM > 0) parts.push(`${wholeM} میلیون`);
-          const thousands = Math.round(fracM * 1000); // 0.5 => 500 هزار
+          const thousands = Math.round(fracM * 1000);
           if (thousands > 0) parts.push(`${thousands} هزار`);
         }
         return parts.join(" و ") + " تومان";
       }
 
-      // تومان‌نویس سراسری (برای ارسال/پیش‌نمایش اگر لازم شد)
       function priceWordsRaw(n) {
         if (!n) return "";
         if (n > 100_000_000_000) n = 100_000_000_000;
@@ -376,7 +252,6 @@
         return parts.join(" و ") + " تومان";
       }
 
-      // تبدیل «میلیون» (با اعشار یک‌رقمی) به تومان عدد صحیح برای ارسال
       const millionToToman = (v) => {
         const s = normalizeMillion(v);
         if (!/^\d{1,5}(\.\d)?$/.test(s)) return 0;
@@ -384,21 +259,12 @@
         return Math.round(f * 1_000_000);
       };
 
-      // Hint بالای فیلد قیمت
       $("#price").addEventListener("input", () => {
-        $("#price_hint").textContent = formatPriceFromMillionsText(
-          $("#price").value
-        );
+        $("#price_hint").textContent = formatPriceFromMillionsText($("#price").value);
       });
 
-      function setErr(id, msg) {
-        $("#e_" + id).textContent = msg || "";
-      }
-      function clearErrors() {
-        ["car", "year", "color", "km", "price", "ins", "phone"].forEach((k) =>
-          setErr(k, "")
-        );
-      }
+      function setErr(id, msg) { $("#e_" + id).textContent = msg || ""; }
+      function clearErrors() { ["car", "year", "color", "km", "price", "ins", "phone"].forEach((k) => setErr(k, "")); }
 
       function collect() {
         return {
@@ -409,7 +275,7 @@
           km: $("#km").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(), // میلیون با اعشار ۱ رقمی
+          price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
           phone: $("#phone").value.trim(),
         };
@@ -419,12 +285,7 @@
         clearErrors();
         let ok = true;
 
-        if (
-          hasPersianDigits(p.car) ||
-          /\d{5,}/.test(p.car) ||
-          !p.car ||
-          p.car.length > 10
-        ) {
+        if (hasPersianDigits(p.car) || /\d{5,}/.test(p.car) || !p.car || p.car.length > 10) {
           setErr("car", "نام خودرو نامعتبر است (فقط ارقام لاتین).");
           ok = false;
         }
@@ -441,16 +302,12 @@
           ok = false;
         }
         if (p.insurance) {
-          if (
-            hasPersianDigits(p.insurance) ||
-            !/^[0-9]{1,2}$/.test(p.insurance)
-          ) {
+          if (hasPersianDigits(p.insurance) || !/^[0-9]{1,2}$/.test(p.insurance)) {
             setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
             ok = false;
           }
         }
 
-        // ولیدیشن شماره تماس
         if (hasPersianDigits(p.phone) || !/^09\d{9}$/.test(p.phone)) {
           setErr("phone", "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.");
           ok = false;
@@ -460,15 +317,12 @@
         const reqPrice = p.category !== "فروش همکاری";
         if (reqPrice) {
           if (!/^\d{1,5}(\.\d)?$/.test(m)) {
-            setErr(
-              "price",
-              "قیمت را به میلیون و با ارقام لاتین بنویسید (تا 100000.0)."
-            );
+            setErr("price", "قیمت را به میلیون و با ارقام لاتین بنویسید (تا 100000.0).");
             ok = false;
           }
         } else if (p.price && !/^\d{1,5}(\.\d)?$/.test(m)) {
-          setErr("price", "قیمت را به میلیون و با ارقام لاتین بنویسید.");
-          ok = false;
+            setErr("price", "قیمت را به میلیون و با ارقام لاتین بنویسید.");
+            ok = false;
         }
         return ok;
       }
@@ -479,9 +333,7 @@
         if (!validate(p)) return;
         const priceText =
           p.category === "فروش همکاری"
-            ? p.price
-              ? formatPriceFromMillionsText(p.price)
-              : "—"
+            ? p.price ? formatPriceFromMillionsText(p.price) : "—"
             : formatPriceFromMillionsText(p.price) || "—";
         const insText = p.insurance ? p.insurance + " ماه" : "—";
 

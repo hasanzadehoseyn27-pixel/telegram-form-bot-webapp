@@ -5,30 +5,66 @@ from aiogram.types import (
 )
 
 # --- کیبورد اصلی (حالت عادی) ---
-def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
+def start_keyboard(_webapp_url_ignored: str, is_admin: bool) -> ReplyKeyboardMarkup:
     """
     پایین چت:
     [📝 فرم ثبت آگهی]   [⚙️ پنل مدیریتی] (فقط برای ادمین)
+
+    نکته: این‌جا دیگر WebApp را مستقیم باز نمی‌کنیم. ابتدا با پیام «📝 فرم ثبت آگهی»
+    عضویت کاربر چک می‌شود؛ سپس دکمه‌ی WebApp به‌صورت Inline داده می‌شود.
     """
-    row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
+    row = [KeyboardButton(text="📝 فرم ثبت آگهی")]
     if is_admin:
         row.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
     return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
 
-# --- کیبورد پنل مدیریتی (Reply Keyboard) ---
-def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
+# --- ریشهٔ پنل مدیریتی (Reply Keyboard) ---
+def admin_root_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     """
-    جایگزین کیبورد اصلی وقتی ادمین روی «⚙️ پنل مدیریتی» می‌زند.
-    OWNER: گزینه‌های دسترسی کانال را هم می‌بیند.
+    ردیف اول: دو گزینهٔ اصلی
+    ردیف دوم: بازگشت تمام‌عرض
     """
-    rows = [
-        [KeyboardButton(text="📋 لیست ادمین‌ها"), KeyboardButton(text="➕ افزودن ادمین")],
-        [KeyboardButton(text="🗑 حذف ادمین"), KeyboardButton(text="🔙 بازگشت")],
+    top = [
+        KeyboardButton(text="👤 مدیریت ادمین‌ها"),
     ]
     if is_owner:
-        rows.append([KeyboardButton(text="➕ افزودن کانال مجاز"), KeyboardButton(text="🗑 حذف کانال مجاز")])
-        rows.append([KeyboardButton(text="📋 لیست کانال‌های مجاز")])
+        top.append(KeyboardButton(text="📡 مدیریت کانال‌های مجاز"))
+    rows = [top, [KeyboardButton(text="🔙 بازگشت")]]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+# --- زیرمنو: مدیریت ادمین‌ها ---
+def admin_admins_kb() -> ReplyKeyboardMarkup:
+    row1 = [
+        KeyboardButton(text="📋 لیست ادمین‌ها"),
+        KeyboardButton(text="➕ افزودن ادمین"),
+        KeyboardButton(text="🗑 حذف ادمین"),
+    ]
+    row2 = [KeyboardButton(text="🔙 بازگشت به پنل")]
+    return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)
+
+# --- زیرمنو: مدیریت کانال‌های مجاز (فقط OWNER) ---
+def admin_allowed_kb() -> ReplyKeyboardMarkup:
+    row1 = [
+        KeyboardButton(text="➕ افزودن کانال مجاز"),
+        KeyboardButton(text="🗑 حذف کانال مجاز"),
+        KeyboardButton(text="📋 لیست کانال‌های مجاز"),
+    ]
+    row2 = [KeyboardButton(text="🔙 بازگشت به پنل")]
+    return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)
+
+# --- دکمهٔ Inline برای بازکردن WebApp فرم ---
+def open_form_kb(webapp_url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 بازکردن فرم آگهی", web_app=WebAppInfo(url=webapp_url))]
+    ])
+
+# --- دکمهٔ Inline برای عضویت کانال ---
+def join_channel_kb(channel_username: str) -> InlineKeyboardMarkup:
+    # channel_username مثل: "@tetsbankkhodro"
+    url = f"https://t.me/{channel_username.lstrip('@')}"
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"بانک خودرو — {channel_username}", url=url)]
+    ])
 
 # --- دکمه انتشار برای کاربر (INLINE) ---
 def user_finish_kb(token: str) -> InlineKeyboardMarkup:
