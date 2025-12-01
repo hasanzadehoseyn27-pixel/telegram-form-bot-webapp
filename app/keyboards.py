@@ -4,27 +4,26 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton
 )
 
-# --- کیبورد اصلی (حالت عادی) ---
+# --- کیبورد اصلی (کیبورد پایین چت) ---
 def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
     """
     پایین چت:
     [📝 فرم ثبت آگهی]   [⚙️ پنل مدیریتی] (فقط برای ادمین)
     """
-    row = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
+    row1 = [KeyboardButton(text="📝 فرم ثبت آگهی", web_app=WebAppInfo(url=webapp_url))]
     if is_admin:
-        row.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
-    return ReplyKeyboardMarkup(keyboard=[row], resize_keyboard=True)
+        row1.append(KeyboardButton(text="⚙️ پنل مدیریتی"))
+    return ReplyKeyboardMarkup(keyboard=[row1], resize_keyboard=True)
 
-# --- ریشهٔ پنل مدیریتی (Reply Keyboard) ---
-def admin_root_kb(is_owner: bool) -> ReplyKeyboardMarkup:
-    """
-    ردیف اول: دو گزینهٔ اصلی
-    ردیف دوم: «بازگشت» تمام‌عرض
-    """
+# --- ریشهٔ پنل مدیریتی (دو گزینه کنار هم + بازگشت تمام‌عرض) ---
+def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     top = [KeyboardButton(text="👤 مدیریت ادمین‌ها")]
     if is_owner:
         top.append(KeyboardButton(text="📡 مدیریت کانال‌های مجاز"))
-    rows = [top, [KeyboardButton(text="🔙 بازگشت")]]
+    rows = [
+        top,
+        [KeyboardButton(text="🔙 بازگشت")]  # تمام‌عرض
+    ]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 # --- زیرمنو: مدیریت ادمین‌ها ---
