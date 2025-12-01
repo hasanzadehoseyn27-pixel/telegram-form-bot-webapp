@@ -4,7 +4,7 @@ from uuid import uuid4
 import jdatetime
 
 from aiogram import Router, F, html, types, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, BaseFilter
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from .config import SETTINGS
@@ -20,7 +20,7 @@ from .storage import (
     next_daily_number,
     list_admins, add_admin, remove_admin, is_admin,
     is_owner,
-    add_destination,
+    add_destination,  # فقط برای ثبت عنوان کانال/سازگاری
     list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     is_channel_allowed,
 )
@@ -34,8 +34,19 @@ MAX_PHOTOS = 5
 PENDING: dict[str, dict] = {}           # token -> {...}
 PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
 ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
-ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode}
-ACCESS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode}
+ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
+ACCESS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode: add/remove}
+
+# ==========================
+#  فیلترهای سفارشی برای جلوگیری از تداخل
+# ==========================
+class WaitingAdminEdit(BaseFilter):
+    async def __call__(self, message: types.Message) -> bool:
+        return message.from_user.id in ADMIN_EDIT_WAIT
+
+class WaitingOwnerAccess(BaseFilter):
+    async def __call__(self, message: types.Message) -> bool:
+        return message.from_user.id in ACCESS_CH_WAIT
 
 # ====== کمکی‌ها ======
 def to_jalali(date_iso: str) -> str:
@@ -258,99 +269,6 @@ async def admin_id_input(message: types.Message):
         ok = remove_admin(uid); await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
 
-# ====== مدیریت کانال‌های مجاز (OWNER) ======
-def _extract_public_tme_username_from_link(text: str) -> str | None:
-    t = (text or "").strip()
-    m = re.search(r"(?:https?://)?t\.me/([^ \n]+)", t)
-    if not m: return None
-    slug = m.group(1).split("?")[0].strip()
-    if slug.startswith("+") or slug.startswith("joinchat/") or slug.startswith("c/"): return None
-    if not re.fullmatch(r"[A-Za-z0-9_]{5,}", slug): return None
-    if not slug.startswith("@"): slug = "@" + slug
-    return slug
-
-@router.message(F.text == "📋 لیست کانال‌های مجاز")
-async def list_allowed_channels_msg(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
-        return
-    ids = list_allowed_channels()
-    if not ids:
-        await message.answer("هیچ کانال/گروه مجازی ثبت نشده است.")
-        return
-    lines = ["کانال‌ها/گروه‌های مجاز ربات:"]
-    for cid in ids:
-        flag = " (کانال اصلی)" if int(cid) == int(SETTINGS.TARGET_GROUP_ID) else ""
-        lines.append(f"- {cid}{flag}")
-    await message.answer("\n".join(lines))
-
-@router.message(F.text == "➕ افزودن کانال مجاز")
-async def add_allowed_channel_start(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
-        return
-    ACCESS_CH_WAIT[message.from_user.id] = {"mode": "add"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
-
-@router.message(F.text == "🗑 حذف کانال مجاز")
-async def remove_allowed_channel_start(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
-        return
-    ACCESS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
-
-@router.message(F.text)
-async def access_channel_flow(message: types.Message):
-    st = ACCESS_CH_WAIT.get(message.from_user.id)
-    if not st: return
-    if not is_owner(message.from_user.id):
-        ACCESS_CH_WAIT.pop(message.from_user.id, None)
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
-        return
-
-    ref = _extract_public_tme_username_from_link(message.text)
-    if not ref:
-        await message.reply("❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.\nاگر کانال خصوصی است یا لینک joinchat/+ دارد، ابتدا به کانال یوزرنیم عمومی بدهید.")
-        return
-
-    try:
-        chat = await message.bot.get_chat(ref)
-        cid = chat.id
-        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
-    except Exception:
-        await message.reply("❌ نتوانستم اطلاعات این لینک را بگیرم. مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد.")
-        return
-
-    mode = st.get("mode")
-    if mode == "add":
-        ok = add_allowed_channel(cid)
-        if ok:
-            add_destination(cid, title)
-            await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
-        else:
-            await message.reply("ℹ️ این کانال/گروه قبلاً در لیست مجاز بود.")
-    elif mode == "remove":
-        if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
-            await message.reply("⛔ امکان حذف «کانال اصلی (.env)» وجود ندارد.")
-        else:
-            ok = remove_allowed_channel(cid)
-            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی در لیست نبود.")
-    else:
-        await message.reply("وضعیت ناشناخته.")
-    ACCESS_CH_WAIT.pop(message.from_user.id, None)
-
-# ====== ابزارها ======
-@router.message(Command("id", "ids"))
-async def cmd_id(message: types.Message):
-    await message.answer(f"user_id: {message.from_user.id}\nchat_id: {message.chat.id}\nchat_type: {message.chat.type}")
-
-@router.message(Command("admins"))
-async def cmd_admins(message: types.Message):
-    admins = list_admins()
-    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
-    await message.answer(txt)
-
 # ====== اعتبارسنجی و دریافت فرم ======
 def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None]:
     cat = (payload.get("category") or "").strip()
@@ -424,6 +342,11 @@ async def on_webapp_data(message: types.Message):
 # ====== عکس ======
 @router.message(F.photo)
 async def on_photo(message: types.Message):
+    # جلوگیری از ادامهٔ کار اگر عضو نیست
+    if not await _user_is_member(message.bot, message.from_user.id):
+        await message.reply("⛔ ابتدا عضو کانال شوید و دوباره تلاش کنید.")
+        return
+
     sess = PHOTO_WAIT.get(message.from_user.id)
     if not sess: return
     if "remain" not in sess or not isinstance(sess["remain"], int) or sess["remain"] < 0: sess["remain"] = MAX_PHOTOS
@@ -488,6 +411,11 @@ async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[s
 # ====== دکمه «انتشار در گروه» ======
 @router.callback_query(F.data.startswith("finish:"))
 async def cb_finish(call: types.CallbackQuery):
+    # اگر عضو نیست → اجازهٔ انتشار اولیه نده
+    if not await _user_is_member(call.bot, call.from_user.id):
+        await call.answer("⛔ ابتدا عضو کانال شوید.", show_alert=True)
+        return
+
     token = call.data.split(":", 1)[1]
     data = PENDING.get(token)
     if not data or data.get("user_id") != call.from_user.id:
@@ -518,7 +446,6 @@ async def cb_finish(call: types.CallbackQuery):
 # ====== ویرایش‌ها ======
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
-    await call.answer("قیمت جدید را بفرستید…")
     if not is_admin(call.from_user.id): 
         await call.answer("شما ادمین نیستید.", show_alert=True); 
         return
@@ -527,11 +454,11 @@ async def cb_edit_price(call: types.CallbackQuery):
         await call.answer("درخواست یافت نشد/جلسه منقضی شده.", show_alert=True); 
         return
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "price"}
+    await call.answer("قیمت جدید را بفرستید…")
     await call.message.reply("قیمت جدید را با ارقام لاتین بفرستید (میلیون با اعشار یک‌رقمی مثل 50.5 یا تومانِ خالی). سقف ۱۰۰ میلیارد.")
 
 @router.callback_query(F.data.startswith("edit_desc:"))
 async def cb_edit_desc(call: types.CallbackQuery):
-    await call.answer("توضیحات جدید را بفرستید…")
     if not is_admin(call.from_user.id): 
         await call.answer("شما ادمین نیستید.", show_alert=True); 
         return
@@ -540,10 +467,11 @@ async def cb_edit_desc(call: types.CallbackQuery):
         await call.answer("درخواست یافت نشد/جلسه منقضی شده.", show_alert=True); 
         return
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "desc"}
+    await call.answer("توضیحات جدید را بفرستید…")
     await call.message.reply("توضیحات جدید را بفرستید.")
 
-# این هندلر عمداً فقط F.text دارد تا هیچ فیلتری مزاحم نشود
-@router.message(F.text)
+# --- هندلر متخصّص برای ویرایش (تا با F.text های دیگر تداخل نکند)
+@router.message(WaitingAdminEdit())
 async def on_admin_text_edit(message: types.Message):
     w = ADMIN_EDIT_WAIT.get(message.from_user.id)
     if not w: 
@@ -575,6 +503,57 @@ async def on_admin_text_edit(message: types.Message):
         reply_markup=admin_review_kb(token),
     )
     await refresh_admin_panels(message.bot, token)
+
+# --- جریان متنِ مدیریت کانال‌های مجاز فقط وقتی OWNER در حالت مخصوص است
+@router.message(WaitingOwnerAccess())
+async def access_channel_flow(message: types.Message):
+    if not is_owner(message.from_user.id):
+        ACCESS_CH_WAIT.pop(message.from_user.id, None)
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
+        return
+
+    st = ACCESS_CH_WAIT.get(message.from_user.id)
+    if not st:
+        return
+
+    # تنها لینک‌های عمومی t.me/username
+    t = (message.text or "").strip()
+    m = re.search(r"(?:https?://)?t\.me/([^ \n]+)", t)
+    if not m:
+        await message.reply("❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.\nاگر کانال خصوصی است یا لینک joinchat/+ دارد، ابتدا به کانال یوزرنیم عمومی بدهید.")
+        return
+    slug = m.group(1).split("?")[0].strip()
+    if slug.startswith("+") or slug.startswith("joinchat/") or slug.startswith("c/"):
+        await message.reply("❗ فقط کانال/گروه با یوزرنیم عمومی پشتیبانی می‌شود."); return
+    if not re.fullmatch(r"[A-Za-z0-9_]{5,}", slug):
+        await message.reply("❗ یوزرنیم نامعتبر است."); return
+    ref = slug if slug.startswith("@") else ("@" + slug)
+
+    try:
+        chat = await message.bot.get_chat(ref)
+        cid = chat.id
+        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
+    except Exception:
+        await message.reply("❌ نتوانستم اطلاعات این لینک را بگیرم. مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد.")
+        return
+
+    mode = st.get("mode")
+    if mode == "add":
+        ok = add_allowed_channel(cid)
+        if ok:
+            add_destination(cid, title)
+            await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
+        else:
+            await message.reply("ℹ️ این کانال/گروه قبلاً در لیست مجاز بود.")
+    elif mode == "remove":
+        if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
+            await message.reply("⛔ امکان حذف «کانال اصلی (.env)» وجود ندارد.")
+        else:
+            ok = remove_allowed_channel(cid)
+            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی در لیست نبود.")
+    else:
+        await message.reply("وضعیت ناشناخته.")
+    ACCESS_CH_WAIT.pop(message.from_user.id, None)
 
 # ====== اعمال نهایی ======
 @router.callback_query(F.data.startswith("publish:"))
