@@ -23,7 +23,7 @@ def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     اگر OWNER باشد، دکمه «⚡ mmm» هم اضافه می‌شود.
     """
     row1 = [
-        KeyboardButton(text="BBBs لیست ادمین‌ها"),
+        KeyboardButton(text="zxzzzzzz لیست ادمین‌ها"),
         KeyboardButton(text="➕ افزودن ادمین"),
     ]
     row2 = [
