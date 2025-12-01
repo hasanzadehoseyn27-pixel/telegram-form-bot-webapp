@@ -241,7 +241,7 @@ async def admin_back_to_main(message: types.Message):
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
 
 # ====== پنل مدیریتی ساده (ادمین‌ها) ======
-@router.message(F.text == "📋 لیست ادمین‌ها")
+@router.message(F.text == "AAA 📋 لیست ادمین‌ها"  )
 async def admin_list_msg(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")

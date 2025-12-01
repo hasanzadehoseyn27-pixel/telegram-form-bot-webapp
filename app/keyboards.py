@@ -23,7 +23,7 @@ def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     اگر OWNER باشد، دکمه «⚡ مدیریت دسترسی» هم اضافه می‌شود.
     """
     row1 = [
-        KeyboardButton(text="📋 لیست ادمین‌ها"),
+        KeyboardButton(text="BBB لیست ادمین‌ها"),
         KeyboardButton(text="➕ افزودن ادمین"),
     ]
     row2 = [
