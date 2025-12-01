@@ -1,4 +1,3 @@
-# app/handlers.py
 import json, re
 from uuid import uuid4
 import jdatetime
@@ -10,7 +9,9 @@ from aiogram.utils.media_group import MediaGroupBuilder
 from .config import SETTINGS
 from .keyboards import (
     start_keyboard,
-    admin_menu_kb,
+    admin_menu_kb,      # ریشه پنل مدیریتی
+    admin_admins_kb,    # زیرمنو ادمین‌ها
+    admin_allowed_kb,   # زیرمنو کانال‌های مجاز
     admin_review_kb,
     user_finish_kb,
 )
@@ -18,7 +19,7 @@ from .storage import (
     next_daily_number,
     list_admins, add_admin, remove_admin, is_admin,
     is_owner,
-    add_destination,  # فقط برای ثبت عنوان کانال/سازگاری
+    add_destination,
     list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     is_channel_allowed,
 )
@@ -192,6 +193,22 @@ async def open_admin_menu(message: types.Message):
         return
     kb = admin_menu_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:\nیک گزینه را انتخاب کنید:", reply_markup=kb)
+
+@router.message(F.text == "👤 مدیریت ادمین‌ها")
+async def open_admins_submenu(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید."); return
+    await message.answer("مدیریت ادمین‌ها:", reply_markup=admin_admins_kb())
+
+@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
+async def open_allowed_submenu(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ این بخش فقط برای مدیر اصلی است."); return
+    await message.answer("مدیریت کانال‌های مجاز:", reply_markup=admin_allowed_kb())
+
+@router.message(F.text == "🔙 بازگشت به پنل")
+async def back_to_panel(message: types.Message):
+    await message.answer("بازگشت به پنل مدیریتی.", reply_markup=admin_menu_kb(is_owner(message.from_user.id)))
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
@@ -373,8 +390,18 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
 
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
-    try: data = json.loads(message.web_app_data.data or "{}")
-    except Exception: data = {}
+    # چک عضویت هنگام ارسال فرم هم انجام شود
+    if not await _user_is_member(message.bot, message.from_user.id):
+        join_kb = types.InlineKeyboardMarkup(
+            inline_keyboard=[[types.InlineKeyboardButton(text="بانک خودرو", url="https://t.me/tetsbankkhodro")]]
+        )
+        await message.answer("⛔ ابتدا عضو کانال شوید و سپس دوباره /start را بزنید.", reply_markup=join_kb)
+        return
+
+    try:
+        data = json.loads(message.web_app_data.data or "{}")
+    except Exception:
+        data = {}
     ok, err, form = validate_and_normalize(data)
     if not ok:
         await message.answer(err or "داده نامعتبر است."); return
@@ -549,7 +576,7 @@ async def cb_publish(call: types.CallbackQuery):
     caption    = build_caption(form, number, jdate, show_price=show_price, show_desc=show_desc)
     photos     = form.get("photos") or []
 
-    # اگر پست اولیه موجود است، تلاش برای ادیت؛ وگرنه ارسال جدید
+    # تلاش برای ادیت؛ در صورت خطا، ارسال جدید (fallback)
     edited = False
     if grp.get("chat_id") and grp.get("msg_id"):
         try:
@@ -562,7 +589,6 @@ async def cb_publish(call: types.CallbackQuery):
             edited = False
 
     if not edited:
-        # ارسال جدید (فالبک امن)
         try:
             if photos:
                 mg = MediaGroupBuilder()

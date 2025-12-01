@@ -1,4 +1,3 @@
-# app/storage.py
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -7,10 +6,6 @@ from datetime import date
 # ==========================
 #  مسیر داده‌ها (سازگار با لیارا)
 # ==========================
-# /usr/src/app و /var/lib معمولاً read-only هستند؛ /tmp قابل‌نوشتن است.
-DATA = Path("/tmp/bank_khodro_bot")
-DATA.mkdir(parents=True, exist_ok=True)
-# مسیر داده‌ها – تنها مسیر قابل نوشتن در لیارا (Python Runtime)
 DATA = Path("/tmp/bot_data")
 DATA.mkdir(parents=True, exist_ok=True)
 
@@ -23,13 +18,6 @@ ALLOWED_FILE = DATA / "allowed_channels.json"  # فقط لیست کانال/گر
 #  شماره آگهی (سراسری و بدون ریست روزانه)
 # ==========================
 def next_daily_number() -> tuple[int, str]:
-    """
-    شمارنده‌ی سراسری آگهی:
-      - از ۱ تا بی‌نهایت بالا می‌رود
-      - با عوض شدن روز، ریست نمی‌شود
-    ساختار DAILY_FILE:
-      {"date": "2025-12-01", "num": 123}
-    """
     today = date.today().isoformat()
     data = {"date": today, "num": 0}
 
@@ -54,13 +42,6 @@ _ADMIN_SET: set[int] = set()
 _OWNER_ID: int = 0
 
 def bootstrap_admins(initial_env_admins: set[int], owner_id: int) -> None:
-    """
-    در شروع برنامه:
-      - ادمین‌های داخل .env (ADMIN_IDS)
-      - ادمین‌های ذخیره‌شده در فایل
-      - OWNER_ID
-    را با هم merge می‌کنیم.
-    """
     global _ADMIN_SET, _OWNER_ID
     _OWNER_ID = int(owner_id or 0)
 
@@ -118,8 +99,6 @@ def is_owner(uid: int) -> bool:
 # ==========================
 #  مقصدها (سازگاری با کد قدیمی)
 # ==========================
-# ساختار DESTS_FILE:
-# {"list":[{"id":-1001,"title":"گروه A"}, …], "active":-1001}
 _DESTS: dict = {"list": [], "active": 0}
 
 def _load_dests() -> None:
@@ -205,9 +184,6 @@ def _save_allowed() -> None:
         pass
 
 def bootstrap_allowed_channels(default_channel_id: int | None) -> None:
-    """
-    در شروع برنامه، کانال اصلی (.env) را به‌صورت خودکار در Allowlist ثبت می‌کنیم.
-    """
     _load_allowed()
     if default_channel_id:
         _ALLOWED_CHANNELS.add(int(default_channel_id))

@@ -58,7 +58,6 @@
         background: #0e1628;
         border: 1px solid var(--line);
         cursor: pointer;
-        /* وسط‌چینی عمودی واقعی حتی وقتی دوخطی می‌شود */
         display: flex;
         align-items: center;
         justify-content: center;
@@ -253,7 +252,6 @@
               />
               <div class="err" id="e_price"></div>
             </div>
-
             <div>
               <label>شماره تماس *</label>
               <input
@@ -283,7 +281,6 @@
       </div>
     </div>
 
-    <!-- پیش‌نمایش -->
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
@@ -389,7 +386,6 @@
           $("#price").value
         );
       });
-
       function setErr(id, msg) {
         $("#e_" + id).textContent = msg || "";
       }
