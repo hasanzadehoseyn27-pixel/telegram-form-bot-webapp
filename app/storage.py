@@ -136,7 +136,7 @@ def get_owner_id() -> int:
 def is_owner(uid: int) -> bool:
     """
     فقط برای چک‌کردن اینکه این کاربر همان OWNER_ID است یا نه.
-    (برای منوی «مدیریت دسترسی» که فقط owner اجازه دارد.)
+    (برای منوی «mmm» که فقط owner اجازه دارد.)
     """
     return int(uid) == _OWNER_ID
 

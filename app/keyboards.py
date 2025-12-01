@@ -20,7 +20,7 @@ def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
 def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     """
     جایگزین کیبورد اصلی وقتی ادمین روی «⚙️ پنل مدیریتی» می‌زند.
-    اگر OWNER باشد، دکمه «⚡ مدیریت دسترسی» هم اضافه می‌شود.
+    اگر OWNER باشد، دکمه «⚡ mmm» هم اضافه می‌شود.
     """
     row1 = [
         KeyboardButton(text="BBBs لیست ادمین‌ها"),
@@ -33,8 +33,8 @@ def admin_menu_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     rows = [row1, row2]
 
     if is_owner:
-        # ردیف جدا برای مدیریت دسترسی
-        rows.append([KeyboardButton(text="⚡ مدیریت دسترسی")])
+        # ردیف جدا برای mmm
+        rows.append([KeyboardButton(text="⚡ mmm")])
 
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 

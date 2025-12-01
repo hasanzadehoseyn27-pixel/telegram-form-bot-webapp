@@ -268,26 +268,26 @@ async def admin_remove_msg(message: types.Message):
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
     await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
 
-# ====== ورود به مدیریت دسترسی (فقط OWNER) ======
-@router.message(F.text == "⚡ مدیریت دسترسی")
+# ====== ورود به mmm (فقط OWNER) ======
+@router.message(F.text == "⚡ mmm")
 async def access_manage_entry(message: types.Message):
     if not is_owner(message.from_user.id):
         await message.answer("این بخش فقط برای OWNER تعریف شده است.")
         return
     ACCESS_WAIT[message.from_user.id] = {"step": "choose_admin"}
     await message.answer(
-        "مدیریت دسترسی:\n"
+        "mmm:\n"
         "آیدی عددی ادمینی که می‌خواهید دسترسی‌هایش را تنظیم کنید ارسال کنید."
     )
 
-# ====== ورودی عددی (ادمین‌ها + انتخاب ادمین هدف برای مدیریت دسترسی) ======
+# ====== ورودی عددی (ادمین‌ها + انتخاب ادمین هدف برای mmm) ======
 @router.message(F.text.regexp(r"^\d{4,}$"))
 async def admin_id_input_or_access(message: types.Message):
     uid_from = message.from_user.id
     text = message.text.strip()
     uid = int(text)
 
-    # 1) اگر در حالت انتخاب ادمین برای مدیریت دسترسی هستیم
+    # 1) اگر در حالت انتخاب ادمین برای mmm هستیم
     st = ACCESS_WAIT.get(uid_from)
     if st and st.get("step") == "choose_admin":
         if not is_admin(uid):
@@ -317,7 +317,7 @@ async def admin_id_input_or_access(message: types.Message):
         await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
     ADMIN_WAIT_INPUT.pop(uid_from, None)
 
-# ====== جریان مدیریت دسترسی (متن آزاد) ======
+# ====== جریان mmm (متن آزاد) ======
 def _extract_chat_reference(text: str) -> str | None:
     """
     از متن کاربر (لینک t.me یا @username) یک reference برای get_chat می‌سازد.
@@ -348,7 +348,7 @@ def _extract_chat_reference(text: str) -> str | None:
 @router.message(F.text)
 async def access_manage_flow(message: types.Message):
     """
-    هر متنی که OWNER در حالت مدیریت دسترسی ارسال می‌کند، اینجا هندل می‌شود.
+    هر متنی که OWNER در حالت mmm ارسال می‌کند، اینجا هندل می‌شود.
     اگر در حالت مدیریت نباشد، این تابع کاری نمی‌کند و پیام به هندلرهای بعدی می‌رود.
     """
     st = ACCESS_WAIT.get(message.from_user.id)
@@ -361,7 +361,7 @@ async def access_manage_flow(message: types.Message):
     # پایان
     if text in ("پایان", "خروج", "اتمام"):
         ACCESS_WAIT.pop(message.from_user.id, None)
-        await message.reply("مدیریت دسترسی برای این ادمین به پایان رسید.")
+        await message.reply("mmm برای این ادمین به پایان رسید.")
         return
 
     # لیست
@@ -817,7 +817,7 @@ async def cb_publish(call: types.CallbackQuery):
     if not target_chats:
         await call.answer(
             "برای شما هیچ کانال/گروه مجازی ثبت نشده است.\n"
-            "از OWNER بخواهید در «⚡ مدیریت دسترسی» برای شما مقصد تعریف کند.",
+            "از OWNER بخواهید در «⚡ mmm» برای شما مقصد تعریف کند.",
             show_alert=True,
         )
         return
