@@ -1,88 +1,68 @@
-# app/handlers.py
-import json
-import re
+import json, re
 from uuid import uuid4
-
 import jdatetime
-from aiogram import Bot, F, Router, html, types
-from aiogram.filters import Command, CommandStart
+
+from aiogram import Router, F, html, types, Bot
+from aiogram.filters import CommandStart, Command
 from aiogram.utils.media_group import MediaGroupBuilder
 
 from .config import SETTINGS
 from .keyboards import (
+    start_keyboard,
+    admin_review_kb,
+    user_finish_kb,
+    # === اضافه‌شده برای پنل مدیریتی ===
+    admin_root_kb,
     admin_admins_kb,
     admin_allowed_kb,
     admin_my_channels_kb,
-    admin_review_kb,
-    admin_root_kb,
-    start_keyboard,
-    user_finish_kb,
 )
 from .storage import (
-    add_admin,
-    add_allowed_channel,
-    add_destination,
-    add_required_channel,
-    get_required_channel_ids,
-    is_admin,
-    is_channel_allowed,
-    is_owner,
-    list_admins,
-    list_allowed_channels,
-    list_required_channels,
     next_daily_number,
-    remove_admin,
-    remove_allowed_channel,
-    remove_required_channel,
+    list_admins, add_admin, remove_admin, is_admin,
+    is_owner,
+    add_destination,  # فقط برای ثبت عنوان کانال/سازگاری
+    list_allowed_channels, add_allowed_channel, remove_allowed_channel,
+    is_channel_allowed,
+    list_required_channels, add_required_channel, remove_required_channel,
+    get_required_channel_ids,
 )
 
 router = Router()
 
 # --- تنظیمات داخلی ---
 MAX_PHOTOS = 5
-MAIN_CHANNEL_FALLBACK_URL = "https://t.me/tetsbankkhodro"  # در صورت نداشتن username برای کانال اصلی
 
 # حافظه‌ی موقت
-PENDING: dict[str, dict] = {}            # token -> {...}
-PHOTO_WAIT: dict[int, dict] = {}         # user_id -> {token, remain}
-ADMIN_EDIT_WAIT: dict[int, dict] = {}    # admin_id -> {token, field}
-ADMIN_WAIT_INPUT: dict[int, dict] = {}   # admin_id -> {mode: add/remove}
-ACCESS_CH_WAIT: dict[int, dict] = {}     # owner_id -> {mode: 'add'|'remove'} (کانال‌های مجاز ارسال)
-MEMBERS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode: 'add'|'remove'} («کانال‌های من»)
+PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, needs:{price,desc}, admin_msgs:[(chat_id,msg_id), ...]}
+PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
+ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
+ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
+ACCESS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode: 'add'|'remove'} برای کانال‌های مجاز ارسال
+MEMBERS_CH_WAIT: dict[int, dict] = {}   # owner_id -> {mode: 'add'|'remove'} برای «کانال‌های من»
 
-
-# =================== کمکی‌های عمومی ===================
-
+# ====== کمکی‌ها ======
 def to_jalali(date_iso: str) -> str:
     y, m, d = map(int, date_iso.split("-"))
     j = jdatetime.date.fromgregorian(year=y, month=m, day=d)
     return f"{j.year}/{j.month:02d}/{j.day:02d}"
 
-
 def contains_persian_digits(s: str) -> bool:
     return bool(re.search(r"[\u06F0-\u06F9\u0660-\u0669]", s or ""))
-
 
 def price_words(num: int) -> str:
     if num >= 100_000_000_000:
         num = 100_000_000_000
     parts = []
     if num >= 1_000_000_000:
-        b = num // 1_000_000_000
-        parts.append(f"{b} میلیارد")
-        num %= 1_000_000_000
+        b = num // 1_000_000_000; parts.append(f"{b} میلیارد"); num %= 1_000_000_000
     if num >= 1_000_000:
-        m = num // 1_000_000
-        parts.append(f"{m} میلیون")
-        num %= 1_000_000
+        m = num // 1_000_000; parts.append(f"{m} میلیون"); num %= 1_000_000
     if num >= 1_000:
-        k = num // 1_000
-        parts.append(f"{k} هزار")
-        num %= 1_000
+        k = num // 1_000; parts.append(f"{k} هزار"); num %= 1_000
     if num > 0:
         parts.append(f"{num}")
     return " و ".join(parts) + " تومان"
-
 
 def _price_million_to_toman_str(raw: str) -> tuple[bool, int]:
     s = (raw or "").replace(" ", "").replace(",", ".").replace("\u066B", ".")
@@ -97,7 +77,6 @@ def _price_million_to_toman_str(raw: str) -> tuple[bool, int]:
         return False, 0
     return True, int(round(v * 1_000_000))
 
-
 def _parse_admin_price(text: str) -> tuple[bool, int]:
     s = (text or "").strip().replace(",", ".").replace("\u066B", ".")
     if contains_persian_digits(s):
@@ -110,112 +89,91 @@ def _parse_admin_price(text: str) -> tuple[bool, int]:
             return True, n
     return False, 0
 
-
-def format_required_channels_for_user() -> str:
-    """
-    متنِ لیست «کانال‌های من» برای کاربر عادی زیر پیام هشدار عضویت.
-    """
-    items = list_required_channels()
-    if not items:
-        return "— هنوز کانال الزامی ثبت نشده است —"
-    lines: list[str] = []
-    main_id = int(SETTINGS.TARGET_GROUP_ID or 0)
-    for ch in items:
-        try:
-            cid = int(ch.get("id", 0))
-        except Exception:
-            continue
-        title = ch.get("title") or ""
-        username = ch.get("username") or ""
-        extras = []
-        if title:
-            extras.append(title)
-        if username:
-            extras.append("@" + username.lstrip("@"))
-        if cid == main_id:
-            extras.append("کانال اصلی")
-        suffix = (" - " + " - ".join(extras)) if extras else ""
-        lines.append(f"- {cid}{suffix}")
-    return "\n".join(lines)
-
-
-# =================== منطق عضویت در «کانال‌های من» ===================
-
+# --- چک عضویت کاربر در کانال‌های موردنیاز ---
 async def _user_is_member(bot: Bot, user_id: int) -> bool:
     """
     فقط برای کاربران عادی چک می‌کند که در همهٔ کانال‌های «کانال‌های من» عضو باشند.
     ادمین‌ها (شامل OWNER) بدون نیاز به عضویت عبور می‌کنند.
+
+    نکته: اگر ربات نتواند در کانالی عضویت کاربر را چک کند (خطای Telegram)،
+    آن کانال را نادیده می‌گیرد تا کاربر بی‌دلیل گیر نکند.
     """
     if is_admin(user_id):
         return True
 
     channel_ids = get_required_channel_ids()
-    # اگر چیزی ثبت نشده بود، کانال اصلی .env به‌صورت پیش‌فرض
+    # اگر در «کانال‌های من» چیزی ثبت نشده باشد، کانال اصلی .env به‌صورت پیش‌فرض استفاده می‌شود
     if not channel_ids and SETTINGS.TARGET_GROUP_ID:
         channel_ids = [SETTINGS.TARGET_GROUP_ID]
 
     if not channel_ids:
         return True
 
+    ok_any = False
     for cid in channel_ids:
         try:
             cm = await bot.get_chat_member(cid, user_id)
             status = str(getattr(cm, "status", "")).lower()
+            ok_any = True
             if status not in {"member", "administrator", "creator", "owner"}:
                 return False
         except Exception:
-            # اگر ربات در کانال عضو/ادمین نباشد و نتواند چک کند، از دید ما یعنی هنوز عضویت تأیید نشده
-            return False
+            # اگر ربات نتواند وضعیت عضویت را در این کانال بفهمد،
+            # برای جلوگیری از مشکل، این کانال را نادیده می‌گیریم.
+            continue
+
+    # اگر هیچ‌جا نتوانست چک کند، اجازه می‌دهیم (fail-open)
+    if not ok_any:
+        return True
     return True
 
-
-async def build_join_kb(bot: Bot) -> types.InlineKeyboardMarkup:
+def _join_kb() -> types.InlineKeyboardMarkup:
     """
     کیبورد عضویت:
-    - برای هر کانال «کانال‌های من» یک دکمهٔ جدا با لینک t.me/... ساخته می‌شود.
-    - اگر کانال اصلی username نداشته باشد، از MAIN_CHANNEL_FALLBACK_URL استفاده می‌کنیم.
-    - پایین همهٔ دکمه‌ها، یک دکمه «🔁 بررسی عضویت» است.
+    - برای هر کانالِ «کانال‌های من» یک ردیف می‌سازد
+      * اگر username داشته باشد → دکمه لینک‌دار t.me/username
+      * اگر نداشته باشد → دکمه متنی با ID (غیرکلیک‌دار واقعی)
+    - پایین همهٔ دکمه‌ها، یک دکمه «🔁 بررسی عضویت» می‌گذارد
     """
     buttons: list[list[types.InlineKeyboardButton]] = []
-    main_id = int(SETTINGS.TARGET_GROUP_ID or 0)
-    channels = list_required_channels()
-    has_any_button = False
+    reqs = list_required_channels()
 
-    for ch in channels:
-        try:
-            cid = int(ch.get("id", 0))
-        except Exception:
-            continue
+    for ch in reqs:
+        cid = int(ch.get("id", 0))
         username = (ch.get("username") or "").lstrip("@")
         title = ch.get("title") or username or str(cid)
 
-        url = None
         if username:
             url = f"https://t.me/{username}"
-        elif cid == main_id and MAIN_CHANNEL_FALLBACK_URL:
-            url = MAIN_CHANNEL_FALLBACK_URL
+            buttons.append([types.InlineKeyboardButton(text=title, url=url)])
+        else:
+            # فقط نمایش آیدی، قابل کلیک نیست (callback بی‌اثر)
+            text = f"{title} (ID: {cid})" if title else str(cid)
+            buttons.append([
+                types.InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"info:{cid}"
+                )
+            ])
 
-        if url:
-            buttons.append(
-                [types.InlineKeyboardButton(text=title, url=url)]
-            )
-            has_any_button = True
-
-    # اگر هیچ دکمه‌ای ساخته نشد، حداقل کانال اصلی با لینک fallback را بگذار
-    if not has_any_button and MAIN_CHANNEL_FALLBACK_URL:
-        buttons.append(
-            [types.InlineKeyboardButton(text="کانال اصلی", url=MAIN_CHANNEL_FALLBACK_URL)]
-        )
+    if not buttons:
+        # حالت سازگاری قدیمی
+        buttons = [
+            [types.InlineKeyboardButton(text="کانال اصلی", url="https://t.me/tetsbankkhodro")]
+        ]
 
     # دکمه بررسی عضویت
-    buttons.append(
-        [types.InlineKeyboardButton(text="🔁 بررسی عضویت", callback_data="check_membership")]
-    )
+    buttons.append([
+        types.InlineKeyboardButton(text="🔁 بررسی عضویت", callback_data="check_membership")
+    ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
+# برای دکمه‌های info: فقط یک پیام کوچک نشان می‌دهیم
+@router.callback_query(F.data.startswith("info:"))
+async def cb_info_channel(call: types.CallbackQuery):
+    await call.answer("این فقط شناسه کانال است؛ برای عضویت، کانال را با سرچ تلگرام پیدا کنید.", show_alert=True)
 
-# =================== متن پنل ادیت ادمین ===================
-
+# ====== متن پنل ادیت ادمین ======
 def admin_panel_text(form: dict) -> str:
     return (
         "ویرایش/اعمال:\n"
@@ -223,7 +181,6 @@ def admin_panel_text(form: dict) -> str:
         f"• توضیحات فعلی: {(html.quote(form.get('desc') or '—'))[:400]}\n\n"
         "یک مورد را انتخاب کنید:"
     )
-
 
 async def refresh_admin_panels(bot: Bot, token: str):
     info = PENDING.get(token) or {}
@@ -247,12 +204,8 @@ async def refresh_admin_panels(bot: Bot, token: str):
             except Exception:
                 pass
 
-
-# =================== ساخت کپشن‌ها ===================
-
-def build_caption(
-    form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool
-) -> str:
+# ====== ساخت کپشن‌ها ======
+def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool) -> str:
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
     lrm_number = "\u200e09127475355\u200e"
 
@@ -272,7 +225,6 @@ def build_caption(
     parts.append(f"☎️ <b>تماس:</b>\nکیوان  —  {lrm_number}")
     parts.append(f"\n🗓️ <i>{jdate}</i>")
     return "\n".join(parts)
-
 
 def admin_caption(
     form: dict,
@@ -301,116 +253,101 @@ def admin_caption(
         lines.append("")
 
     lines.append("🧪 <b>موارد نیازمند ویرایش/تایید:</b>")
-    lines.append(
-        f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}"
-    )
-    lines.append(
-        f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}"
-    )
+    lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
+    lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
     lines.append("—" * 10)
     lines.append("📋 <b>خلاصه آگهی</b>")
     lines.append(f"دسته: {html.quote(form['category'])}")
     lines.append(f"نام خودرو: {html.quote(form['car'])}")
-    lines.append(
-        f"سال/رنگ/کارکرد: {html.quote(form['year'])} / "
-        f"{html.quote(form['color'])} / {html.quote(form['km'])}km"
-    )
-    lines.append(
-        f"بیمه/گیربکس: {html.quote(ins_text)} / "
-        f"{html.quote(form.get('gear') or '—')}"
-    )
+    lines.append(f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km")
+    lines.append(f"بیمه/گیربکس: {html.quote(ins_text)} / {html.quote(form.get('gear') or '—')}")
     lines.append(f"\n🗓️ <i>{jdate}</i>  •  ⏱️ <b>#{number}</b>")
     return "\n".join(lines)
 
-
-# =================== /start و منطق دکمه‌ها ===================
-
+# ====== شروع و کیبورد ======
 @router.message(CommandStart())
 async def on_start(message: types.Message):
     if not SETTINGS.WEBAPP_URL:
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
 
-    # ادمین‌ها بدون چک عضویت
+    # اگر ادمین است، بدون شرط عضویت، مستقیم فرم را می‌بیند
     if is_admin(message.from_user.id):
         kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
         await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
         return
 
-    # کاربر عادی → چک عضویت در کانال‌های من
+    # کاربر عادی → اول عضویت چک می‌شود
     if not await _user_is_member(message.bot, message.from_user.id):
-        text = (
-            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌ها/گروه‌های زیر عضو شوید:\n"
-            f"{format_required_channels_for_user()}\n\n"
-            "سپس روی «🔁 بررسی عضویت» بزنید."
+        await message.answer(
+            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید و سپس روی «🔁 بررسی عضویت» بزنید:",
+            reply_markup=_join_kb(),
         )
-        kb = await build_join_kb(message.bot)
-        await message.answer(text, reply_markup=kb)
         return
 
+    # عضو است → حالا کیبورد فرم را می‌گیرد
     kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
-
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
 
-
-# ---- بررسی عضویت با دکمه اینلاین ----
-
+# ====== دکمه «🔁 بررسی عضویت» (INLINE) ======
 @router.callback_query(F.data == "check_membership")
 async def cb_check_membership(call: types.CallbackQuery):
-    uid = call.from_user.id
+    user_id = call.from_user.id
 
-    if is_admin(uid):
-        kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
-        await call.message.answer(
-            "شما ادمین هستید و نیازی به چک عضویت ندارید.", reply_markup=kb
-        )
+    # ادمین‌ها اصلاً قرار نیست این دکمه را ببینند، ولی اگر دیدند → همیشه اوکی
+    if is_admin(user_id):
+        try:
+            kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
+            await call.message.answer("شما ادمین هستید، می‌توانید از فرم استفاده کنید.", reply_markup=kb)
+        except Exception:
+            pass
         await call.answer()
         return
 
-    ok = await _user_is_member(call.bot, uid)
+    ok = await _user_is_member(call.bot, user_id)
     if not ok:
         await call.answer("هنوز در همهٔ کانال‌ها عضو نیستید.", show_alert=True)
-        await call.message.answer(
-            "❗ باید در تمام کانال‌های لیست‌شده عضو باشید، "
-            "سپس دوباره روی «🔁 بررسی عضویت» بزنید."
-        )
+        try:
+            await call.message.answer("❗ باید در تمام کانال‌های لیست‌شده عضو باشید، سپس دوباره روی «🔁 بررسی عضویت» بزنید.")
+        except Exception:
+            pass
         return
 
-    kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
-    await call.message.answer(
-        "✅ عضویت شما تایید شد. حالا می‌توانید فرم آگهی را پر کنید.",
-        reply_markup=kb,
-    )
-    await call.answer()
+    # اگر همه‌جا عضو است → کیبورد فرم را فعال می‌کنیم
+    try:
+        kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
+        await call.message.answer("✅ عضویت شما تایید شد. حالا می‌توانید روی دکمه «📝 فرم ثبت آگهی» بزنید.", reply_markup=kb)
+    except Exception:
+        pass
+    await call.answer("عضویت شما تایید شد.", show_alert=False)
 
-
-# =================== پنل مدیریتی (ریشه و زیرمنوها) ===================
-
+# ====== پنل مدیریتی (ریشه و زیرمنوها) ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
 async def admin_panel_root_msg(message: types.Message):
+    """باز کردن ریشهٔ پنل مدیریتی."""
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
-
 @router.message(F.text == "👤 مدیریت ادمین‌ها")
 async def admin_manage_admins_root(message: types.Message):
+    """ورود به زیرمنوی مدیریت ادمین‌ها."""
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
     kb = admin_admins_kb()
     await message.answer("مدیریت ادمین‌ها:", reply_markup=kb)
 
-
 @router.message(F.text == "📡 مدیریت کانال‌های مجاز")
 async def admin_manage_allowed_root(message: types.Message):
+    """ورود به زیرمنوی مدیریت کانال‌های مجاز (فقط OWNER)."""
     if not is_owner(message.from_user.id):
         await message.answer(
             "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
@@ -420,9 +357,9 @@ async def admin_manage_allowed_root(message: types.Message):
     kb = admin_allowed_kb()
     await message.answer("مدیریت کانال‌ها و گروه‌های مجاز:", reply_markup=kb)
 
-
 @router.message(F.text == "📣 کانال‌های من")
 async def admin_my_channels_root(message: types.Message):
+    """ورود به زیرمنوی «کانال‌های من» (فقط OWNER)."""
     if not is_owner(message.from_user.id):
         await message.answer(
             "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
@@ -435,29 +372,24 @@ async def admin_my_channels_root(message: types.Message):
         reply_markup=kb,
     )
 
-
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
+    """بازگشت از زیرمنوها به ریشهٔ پنل مدیریتی."""
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
-
-# =================== مدیریت ادمین‌ها ===================
-
+# ====== مدیریت ادمین‌ها ======
 @router.message(F.text == "📋 لیست ادمین‌ها")
 async def admin_list_msg(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
     admins = list_admins()
-    txt = "ادمین‌های فعلی:\n" + (
-        "\n".join(map(str, admins)) if admins else "— خالی —"
-    )
+    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
     await message.answer(txt)
-
 
 @router.message(F.text == "➕ افزودن ادمین")
 async def admin_add_msg(message: types.Message):
@@ -467,7 +399,6 @@ async def admin_add_msg(message: types.Message):
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "add"}
     await message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
 
-
 @router.message(F.text == "🗑 حذف ادمین")
 async def admin_remove_msg(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -475,7 +406,6 @@ async def admin_remove_msg(message: types.Message):
         return
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
     await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
-
 
 @router.message(F.text.regexp(r"^\d{4,}$"))
 async def admin_id_input(message: types.Message):
@@ -492,9 +422,7 @@ async def admin_id_input(message: types.Message):
         await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
 
-
-# =================== مدیریت کانال‌های مجاز ارسال ===================
-
+# ====== مدیریت کانال‌های مجاز (فقط OWNER) ======
 def _extract_public_tme_username_from_link(text: str) -> str | None:
     """
     فقط لینک‌های عمومی t.me/username را می‌پذیریم.
@@ -516,14 +444,10 @@ def _extract_public_tme_username_from_link(text: str) -> str | None:
         slug = "@" + slug
     return slug
 
-
 @router.message(F.text == "📋 لیست کانال‌های مجاز")
 async def list_allowed_channels_msg(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     ids = list_allowed_channels()
     if not ids:
@@ -535,39 +459,26 @@ async def list_allowed_channels_msg(message: types.Message):
         lines.append(f"- {cid}{flag}")
     await message.answer("\n".join(lines))
 
-
 @router.message(F.text == "➕ افزودن کانال مجاز")
 async def add_allowed_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     ACCESS_CH_WAIT[message.from_user.id] = {"mode": "add"}
-    await message.answer(
-        "لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel)."
-    )
-
+    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
 
 @router.message(F.text == "🗑 حذف کانال مجاز")
 async def remove_allowed_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     ACCESS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
-    await message.answer(
-        "لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید "
-        "(مثال: https://t.me/testchannel)."
-    )
+    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
 
-
+# 🔒 فقط وقتی در حالت انتظار مدیریت کانال (کانال‌های مجاز) هستیم، این هندلر فعال می‌شود
 @router.message(
     F.text,
-    F.from_user.id.func(lambda uid: uid in ACCESS_CH_WAIT),
+    F.from_user.id.func(lambda uid: uid in ACCESS_CH_WAIT)
 )
 async def access_channel_flow(message: types.Message):
     st = ACCESS_CH_WAIT.get(message.from_user.id)
@@ -585,26 +496,17 @@ async def access_channel_flow(message: types.Message):
     try:
         chat = await message.bot.get_chat(ref)
         cid = chat.id
-        title = (
-            getattr(chat, "title", "")
-            or getattr(chat, "full_name", "")
-            or ""
-        )
+        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
     except Exception:
-        await message.reply(
-            "❌ نتوانستم اطلاعات این لینک را بگیرم. "
-            "مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد."
-        )
+        await message.reply("❌ نتوانستم اطلاعات این لینک را بگیرم. مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد.")
         return
 
     mode = st.get("mode")
     if mode == "add":
         ok = add_allowed_channel(cid)
         if ok:
-            add_destination(cid, title)
-            await message.reply(
-                f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}"
-            )
+            add_destination(cid, title)  # برای ثبت عنوان (اختیاری/سازگاری)
+            await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
         else:
             await message.reply("ℹ️ این کانال/گروه قبلاً در لیست مجاز بود.")
     elif mode == "remove":
@@ -617,31 +519,24 @@ async def access_channel_flow(message: types.Message):
         await message.reply("وضعیت ناشناخته.")
     ACCESS_CH_WAIT.pop(message.from_user.id, None)
 
-
-# =================== مدیریت «کانال‌های من» (عضویت اجباری کاربران عادی) ===================
-
+# ====== مدیریت «کانال‌های من» (عضویت اجباری کاربران عادی، فقط OWNER) ======
 @router.message(F.text == "📋 لیست کانال‌های من")
 async def list_my_channels_msg(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     items = list_required_channels()
     if not items:
         await message.answer("هنوز هیچ کانالی در بخش «کانال‌های من» ثبت نشده است.")
         return
-    lines = [
-        "کانال‌ها/گروه‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است:"
-    ]
+    lines = ["کانال‌ها/گروه‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است:"]
     for ch in items:
         cid = int(ch.get("id", 0))
         title = ch.get("title") or ""
         username = ch.get("username") or ""
         extras = []
         if username:
-            extras.append("@" + username.lstrip("@"))
+            extras.append(f"@{str(username).lstrip('@')}")
         if cid == int(SETTINGS.TARGET_GROUP_ID):
             extras.append("کانال اصلی")
         suffix = (" - " + " • ".join(extras)) if extras else ""
@@ -652,39 +547,26 @@ async def list_my_channels_msg(message: types.Message):
             lines.append(f"- {cid}{suffix}")
     await message.answer("\n".join(lines))
 
-
 @router.message(F.text == "➕ افزودن کانال من")
 async def add_my_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "add"}
-    await message.answer(
-        "لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel)."
-    )
-
+    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
 
 @router.message(F.text == "🗑 حذف کانال من")
 async def remove_my_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
         return
     MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
-    await message.answer(
-        "لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید "
-        "(مثال: https://t.me/testchannel)."
-    )
+    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
 
-
+# 🔒 فقط وقتی در حالت انتظار مدیریت «کانال‌های من» هستیم، این هندلر فعال می‌شود
 @router.message(
     F.text,
-    F.from_user.id.func(lambda uid: uid in MEMBERS_CH_WAIT),
+    F.from_user.id.func(lambda uid: uid in MEMBERS_CH_WAIT)
 )
 async def my_channels_flow(message: types.Message):
     st = MEMBERS_CH_WAIT.get(message.from_user.id)
@@ -702,48 +584,30 @@ async def my_channels_flow(message: types.Message):
     try:
         chat = await message.bot.get_chat(ref)
         cid = chat.id
-        title = (
-            getattr(chat, "title", "")
-            or getattr(chat, "full_name", "")
-            or ""
-        )
+        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
         username = getattr(chat, "username", None) or ref.lstrip("@")
     except Exception:
-        await message.reply(
-            "❌ نتوانستم اطلاعات این لینک را بگیرم. "
-            "مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد."
-        )
+        await message.reply("❌ نتوانستم اطلاعات این لینک را بگیرم. مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد.")
         return
 
     mode = st.get("mode")
     if mode == "add":
         ok = add_required_channel(cid, title=title, username=username)
         if ok:
-            await message.reply(
-                f"✅ کانال به لیست «کانال‌های من» اضافه شد.\n"
-                f"chat_id: {cid}\nعنوان: {title or username}"
-            )
+            await message.reply(f"✅ کانال به لیست «کانال‌های من» اضافه شد.\nchat_id: {cid}\nعنوان: {title or username}")
         else:
-            await message.reply(
-                "ℹ️ این کانال/گروه قبلاً در «کانال‌های من» ثبت شده بود."
-            )
+            await message.reply("ℹ️ این کانال/گروه قبلاً در «کانال‌های من» ثبت شده بود.")
     elif mode == "remove":
         if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
-            await message.reply(
-                "⛔ امکان حذف «کانال اصلی (.env)» از بخش «کانال‌های من» وجود ندارد."
-            )
+            await message.reply("⛔ امکان حذف «کانال اصلی (.env)» از بخش «کانال‌های من» وجود ندارد.")
         else:
             ok = remove_required_channel(cid)
-            await message.reply(
-                "🗑 حذف شد." if ok else "ℹ️ چنین کانالی در «کانال‌های من» ثبت نشده است."
-            )
+            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی در «کانال‌های من» ثبت نشده است.")
     else:
         await message.reply("وضعیت ناشناخته.")
     MEMBERS_CH_WAIT.pop(message.from_user.id, None)
 
-
-# =================== دستورات راهنما ===================
-
+# ====== دستورات راهنما ======
 @router.message(Command("id", "ids"))
 async def cmd_id(message: types.Message):
     await message.answer(
@@ -752,18 +616,13 @@ async def cmd_id(message: types.Message):
         f"chat_type: {message.chat.type}"
     )
 
-
 @router.message(Command("admins"))
 async def cmd_admins(message: types.Message):
     admins = list_admins()
-    txt = "ادمین‌های فعلی:\n" + (
-        "\n".join(map(str, admins)) if admins else "— خالی —"
-    )
+    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
     await message.answer(txt)
 
-
-# =================== اعتبارسنجی و نرمال‌سازی فرم ===================
-
+# ====== اعتبارسنجی و نرمال‌سازی فرم ======
 def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None]:
     cat = (payload.get("category") or "").strip()
     car = (payload.get("car") or "").strip()
@@ -783,11 +642,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
         or contains_persian_digits(ins)
         or contains_persian_digits(phone)
     ):
-        return (
-            False,
-            "لطفاً اعداد را فقط با رقم‌های لاتین (0-9) وارد کنید.",
-            None,
-        )
+        return False, "لطفاً اعداد را فقط با رقم‌های لاتین (0-9) وارد کنید.", None
 
     if not car or len(car) > 10 or re.search(r"\d{5,}", car):
         return False, "نام خودرو نامعتبر است.", None
@@ -802,19 +657,11 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
 
     # شماره تماس (اجباری - 11 رقم با 09)
     if not re.fullmatch(r"09\d{9}", phone):
-        return (
-            False,
-            "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.",
-            None,
-        )
+        return False, "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.", None
 
     ok_num, toman = _price_million_to_toman_str(price_raw)
     if not ok_num:
-        return (
-            False,
-            "قیمت را با ارقام لاتین و به صورت «میلیون تومان» وارد کنید (مثلاً 50.5).",
-            None,
-        )
+        return False, "قیمت را با ارقام لاتین و به صورت «میلیون تومان» وارد کنید (مثلاً 50.5).", None
 
     price_num = None
     price_words_str = None
@@ -845,18 +692,14 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
     }
     return True, None, form
 
-
-# =================== دریافت فرم از وب‌اپ ===================
-
+# ====== دریافت فرم از وب‌اپ ======
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
-    # گیت عضویت روی دریافت داده
+    # گیت عضویت روی دریافت داده (بدون نیاز به /start مجدد)
     if not await _user_is_member(message.bot, message.from_user.id):
-        kb = await build_join_kb(message.bot)
         await message.answer(
-            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، "
-            "سپس از دکمه «🔁 بررسی عضویت» استفاده کنید.",
-            reply_markup=kb,
+            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس از دکمه «🔁 بررسی عضویت» استفاده کنید.",
+            reply_markup=_join_kb()
         )
         return
 
@@ -873,33 +716,22 @@ async def on_webapp_data(message: types.Message):
     form["username"] = message.from_user.username or ""
 
     token = uuid4().hex
-    PENDING[token] = {
-        "form": form,
-        "user_id": message.from_user.id,
-        "admin_msgs": [],
-    }
+    PENDING[token] = {"form": form, "user_id": message.from_user.id, "admin_msgs": []}
     PHOTO_WAIT[message.from_user.id] = {"token": token, "remain": MAX_PHOTOS}
 
     await message.answer(
         "فرم شما ذخیره شد ✅\n"
-        "اکنون تا ۵ عکس ارسال کنید. هر زمان آماده بودید، "
-        "«📣 انتشار در گروه» را بزنید.",
+        "اکنون تا ۵ عکس ارسال کنید. هر زمان آماده بودید، «📣 انتشار در گروه» را بزنید.",
         reply_markup=user_finish_kb(token),
     )
 
-
-# =================== دریافت عکس کاربر ===================
-
+# ====== دریافت عکس کاربر ======
 @router.message(F.photo)
 async def on_photo(message: types.Message):
     sess = PHOTO_WAIT.get(message.from_user.id)
     if not sess:
         return
-    if (
-        "remain" not in sess
-        or not isinstance(sess["remain"], int)
-        or sess["remain"] < 0
-    ):
+    if "remain" not in sess or not isinstance(sess["remain"], int) or sess["remain"] < 0:
         sess["remain"] = MAX_PHOTOS
 
     if sess["remain"] <= 0:
@@ -911,9 +743,7 @@ async def on_photo(message: types.Message):
 
     file_id = message.photo[-1].file_id
     token = sess["token"]
-    PENDING.setdefault(token, {}).setdefault("form", {}).setdefault(
-        "photos", []
-    ).append(file_id)
+    PENDING.setdefault(token, {}).setdefault("form", {}).setdefault("photos", []).append(file_id)
     sess["remain"] -= 1
     left = max(sess["remain"], 0)
 
@@ -922,17 +752,11 @@ async def on_photo(message: types.Message):
         reply_markup=user_finish_kb(token),
     )
 
-
-# =================== انتشار اولیه در کانال اصلی ===================
-
-async def publish_to_destination(
-    bot: Bot, form: dict, *, show_price: bool, show_desc: bool
-):
+# ====== انتشار اولیه (فقط کانال .env و فقط اگر مجاز باشد) ======
+async def publish_to_destination(bot: Bot, form: dict, *, show_price: bool, show_desc: bool):
     number, iso = next_daily_number()
     j = to_jalali(iso)
-    caption = build_caption(
-        form, number, j, show_price=show_price, show_desc=show_desc
-    )
+    caption = build_caption(form, number, j, show_price=show_price, show_desc=show_desc)
     photos = form.get("photos") or []
     dest_id = SETTINGS.TARGET_GROUP_ID
 
@@ -943,28 +767,13 @@ async def publish_to_destination(
             mg.add_photo(media=fid)
         msgs = await bot.send_media_group(dest_id, media=mg.build())
         first = msgs[0]
-        return {
-            "chat_id": first.chat.id,
-            "msg_id": first.message_id,
-            "has_photos": True,
-            "number": number,
-            "jdate": j,
-        }
+        return {"chat_id": first.chat.id, "msg_id": first.message_id, "has_photos": True, "number": number, "jdate": j}
     else:
         msg = await bot.send_message(dest_id, caption, parse_mode="HTML")
-        return {
-            "chat_id": msg.chat.id,
-            "msg_id": msg.message_id,
-            "has_photos": False,
-            "number": number,
-            "jdate": j,
-        }
-
+        return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
 
 # ارسال پنل برای ادمین‌ها (اطلاعات تماس فقط برای OWNER)
-async def send_review_to_admins(
-    bot: Bot, form: dict, token: str, photos: list[str], grp: dict
-):
+async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
     recipients = list_admins()
     if not recipients:
         return 0
@@ -995,17 +804,13 @@ async def send_review_to_admins(
                 parse_mode="HTML",
                 reply_markup=admin_review_kb(token),
             )
-            PENDING[token].setdefault("admin_msgs", []).append(
-                (panel_msg.chat.id, panel_msg.message_id)
-            )
+            PENDING[token].setdefault("admin_msgs", []).append((panel_msg.chat.id, panel_msg.message_id))
             ok += 1
         except Exception:
             pass
     return ok
 
-
-# =================== دکمه «📣 انتشار در گروه» ===================
-
+# ====== دکمه «انتشار در گروه» ======
 @router.callback_query(F.data.startswith("finish:"))
 async def cb_finish(call: types.CallbackQuery):
     token = call.data.split(":", 1)[1]
@@ -1016,11 +821,7 @@ async def cb_finish(call: types.CallbackQuery):
 
     # چک مجاز بودن کانال .env
     if not is_channel_allowed(SETTINGS.TARGET_GROUP_ID):
-        await call.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.",
-            show_alert=True,
-        )
+        await call.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.", show_alert=True)
         return
 
     form = data["form"]
@@ -1028,21 +829,14 @@ async def cb_finish(call: types.CallbackQuery):
     # انتشار اولیه (فقط کانال .env)
     show_price = form["category"] != "فروش همکاری"
     show_desc = False
-    grp = await publish_to_destination(
-        call.bot, form, show_price=show_price, show_desc=show_desc
-    )
+    grp = await publish_to_destination(call.bot, form, show_price=show_price, show_desc=show_desc)
 
     # نگهداری
     PENDING[token]["grp"] = grp
-    PENDING[token]["needs"] = {
-        "price": (form["category"] == "فروش همکاری"),
-        "desc": True,
-    }
+    PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
 
     # ارسال برای ادمین‌ها
-    sent = await send_review_to_admins(
-        call.bot, form, token, form.get("photos") or [], grp
-    )
+    sent = await send_review_to_admins(call.bot, form, token, form.get("photos") or [], grp)
 
     # پایان جلسه عکس
     PHOTO_WAIT.pop(call.from_user.id, None)
@@ -1051,55 +845,39 @@ async def cb_finish(call: types.CallbackQuery):
     try:
         await call.message.edit_text(
             "ثبت شد ✅\nپست اولیه در گروه منتشر شد"
-            + (
-                " و برای ادمین‌ها ارسال گردید."
-                if sent
-                else " اما ادمینی دریافت نکرد."
-            )
+            + (" و برای ادمین‌ها ارسال گردید." if sent else " اما ادمینی دریافت نکرد.")
         )
     except Exception:
         pass
-    await call.message.answer(
-        "پست اولیه منتشر شد ✅ و برای بررسی به ادمین‌ها ارسال گردید."
-    )
+    await call.message.answer("پست اولیه منتشر شد ✅ و برای بررسی به ادمین‌ها ارسال گردید.")
 
-
-# =================== ویرایش‌ها توسط ادمین ===================
-
+# ====== ویرایش‌ها توسط ادمین ======
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
-        await call.answer("شما ادمین نیستید.", show_alert=True)
-        return
+        await call.answer("شما ادمین نیستید.", show_alert=True); return
     token = call.data.split(":", 1)[1]
     if token not in PENDING:
-        await call.answer("درخواست یافت نشد.", show_alert=True)
-        return
+        await call.answer("درخواست یافت نشد.", show_alert=True); return
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "price"}
-    await call.message.reply(
-        "قیمت جدید را با ارقام لاتین بفرستید "
-        "(میلیون با اعشار یک‌رقمی مثل 50.5 یا تومانِ خالی). سقف ۱۰۰ میلیارد."
-    )
+    await call.message.reply("قیمت جدید را با ارقام لاتین بفرستید (میلیون با اعشار یک‌رقمی مثل 50.5 یا تومانِ خالی). سقف ۱۰۰ میلیارد.")
     await call.answer()
-
 
 @router.callback_query(F.data.startswith("edit_desc:"))
 async def cb_edit_desc(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
-        await call.answer("شما ادمین نیستید.", show_alert=True)
-        return
+        await call.answer("شما ادمین نیستید.", show_alert=True); return
     token = call.data.split(":", 1)[1]
     if token not in PENDING:
-        await call.answer("درخواست یافت نشد.", show_alert=True)
-        return
+        await call.answer("درخواست یافت نشد.", show_alert=True); return
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "desc"}
     await call.message.reply("توضیحات جدید را بفرستید.")
     await call.answer()
 
-
+# ✅ فقط وقتی در حالت انتظار ویرایش هستیم، پیام متنیِ ادمین گرفته می‌شود
 @router.message(
     F.text,
-    F.from_user.id.func(lambda uid: uid in ADMIN_EDIT_WAIT),
+    F.from_user.id.func(lambda uid: uid in ADMIN_EDIT_WAIT)
 )
 async def on_admin_text_edit(message: types.Message):
     w = ADMIN_EDIT_WAIT.get(message.from_user.id)
@@ -1116,10 +894,7 @@ async def on_admin_text_edit(message: types.Message):
     if field == "price":
         ok, n_toman = _parse_admin_price(message.text)
         if not ok:
-            await message.reply(
-                "عدد نامعتبر. فقط ارقام لاتین؛ میلیون با اعشار یک‌رقمی "
-                "(مثل 50.5) یا تومان خالی."
-            )
+            await message.reply("عدد نامعتبر. فقط ارقام لاتین؛ میلیون با اعشار یک‌رقمی (مثل 50.5) یا تومان خالی.")
             return
         form["price_num"] = n_toman
         form["price_words"] = price_words(n_toman)
@@ -1137,93 +912,60 @@ async def on_admin_text_edit(message: types.Message):
     )
     await refresh_admin_panels(message.bot, token)
 
-
-# =================== اعمال نهایی روی پست گروه ===================
-
+# ====== اعمال نهایی (فقط ادیت همان پست در کانال .env، اگر مجاز باشد) ======
 @router.callback_query(F.data.startswith("publish:"))
 async def cb_publish(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
-        await call.answer("شما ادمین نیستید.", show_alert=True)
-        return
+        await call.answer("شما ادمین نیستید.", show_alert=True); return
     token = call.data.split(":", 1)[1]
     info = PENDING.get(token)
     if not info:
-        await call.answer("درخواست یافت نشد.", show_alert=True)
-        return
+        await call.answer("درخواست یافت نشد.", show_alert=True); return
 
     # چک مجاز بودن کانال .env
     if not is_channel_allowed(SETTINGS.TARGET_GROUP_ID):
-        await call.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
-            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.",
-            show_alert=True,
-        )
+        await call.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.", show_alert=True)
         return
 
     form = info["form"]
-    grp = info.get("grp") or {}
+    grp  = info.get("grp") or {}
     needs = info.get("needs") or {"price": False, "desc": True}
 
     number = grp.get("number")
-    jdate = grp.get("jdate")
+    jdate  = grp.get("jdate")
     if not number or not jdate:
         n, iso = next_daily_number()
         number, jdate = n, to_jalali(iso)
 
     show_price = not needs.get("price", False) or bool(form.get("price_words"))
-    show_desc = not needs.get("desc", False) or bool(form.get("desc"))
+    show_desc  = not needs.get("desc", False)  or bool(form.get("desc"))
 
-    caption = build_caption(
-        form, number, jdate, show_price=show_price, show_desc=show_desc
-    )
+    caption = build_caption(form, number, jdate, show_price=show_price, show_desc=show_desc)
 
     try:
         if grp.get("has_photos"):
-            await call.bot.edit_message_caption(
-                chat_id=grp["chat_id"],
-                message_id=grp["msg_id"],
-                caption=caption,
-                parse_mode="HTML",
-            )
+            await call.bot.edit_message_caption(chat_id=grp["chat_id"], message_id=grp["msg_id"], caption=caption, parse_mode="HTML")
         else:
-            await call.bot.edit_message_text(
-                chat_id=grp["chat_id"],
-                message_id=grp["msg_id"],
-                text=caption,
-                parse_mode="HTML",
-            )
+            await call.bot.edit_message_text(chat_id=grp["chat_id"], message_id=grp["msg_id"], text=caption, parse_mode="HTML")
     except Exception:
         # اگر ادیت نشد، ارسال جدید
         try:
             photos = form.get("photos") or []
             if photos:
                 mg = MediaGroupBuilder()
-                mg.add_photo(
-                    media=photos[0], caption=caption, parse_mode="HTML"
-                )
+                mg.add_photo(media=photos[0], caption=caption, parse_mode="HTML")
                 for fid in photos[1:MAX_PHOTOS]:
                     mg.add_photo(media=fid)
-                await call.bot.send_media_group(
-                    SETTINGS.TARGET_GROUP_ID, media=mg.build()
-                )
+                await call.bot.send_media_group(SETTINGS.TARGET_GROUP_ID, media=mg.build())
             else:
-                await call.bot.send_message(
-                    SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML"
-                )
+                await call.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
         except Exception:
-            await call.answer("خطا در ارسال/ادیت پست.", show_alert=True)
-            return
+            await call.answer("خطا در ارسال/ادیت پست.", show_alert=True); return
 
     for chat_id, msg_id in (info.get("admin_msgs") or []):
         try:
-            await call.bot.edit_message_reply_markup(
-                chat_id=chat_id, message_id=msg_id, reply_markup=None
-            )
-            await call.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=msg_id,
-                text="✅ اعمال شد روی پست گروه",
-            )
+            await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
+            await call.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="✅ اعمال شد روی پست گروه")
         except Exception:
             pass
 
@@ -1236,25 +978,34 @@ async def cb_publish(call: types.CallbackQuery):
 
     PENDING.pop(token, None)
 
+@router.callback_query(F.data == "check_membership")
+async def cb_check_membership(call: types.CallbackQuery):
+    uid = call.from_user.id
 
-@router.callback_query(F.data.startswith("reject:"))
-async def cb_reject(call: types.CallbackQuery):
-    if not is_admin(call.from_user.id):
-        await call.answer("شما ادمین نیستید.", show_alert=True)
+    if is_admin(uid):
+        kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
+        await call.message.answer("شما ادمین هستید و نیازی به چک عضویت ندارید.", reply_markup=kb)
+        await call.answer()
         return
-    token = call.data.split(":", 1)[1]
-    info = PENDING.pop(token, None)
-    await call.answer("رد شد.")
+
+    ok = await _user_is_member(call.bot, uid)
+    if not ok:
+        await call.answer("هنوز در همهٔ کانال‌ها عضو نیستید.", show_alert=True)
+        await call.message.answer(
+            "❗ باید در تمام کانال‌های لیست‌شده عضو باشید، سپس دوباره روی «🔁 بررسی عضویت» بزنید."
+        )
+        return
+
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
+    await call.message.answer("✅ عضویت شما تایید شد. حالا می‌توانید فرم آگهی را پر کنید.", reply_markup=kb)
+    await call.answer()
+
 
     if info:
         for chat_id, msg_id in (info.get("admin_msgs") or []):
             try:
-                await call.bot.edit_message_reply_markup(
-                    chat_id=chat_id, message_id=msg_id, reply_markup=None
-                )
-                await call.bot.edit_message_text(
-                    chat_id=chat_id, message_id=msg_id, text="❌ رد شد"
-                )
+                await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
+                await call.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="❌ رد شد")
             except Exception:
                 pass
     try:
