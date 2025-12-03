@@ -19,17 +19,26 @@
         box-sizing: border-box;
         font-family: system-ui, Segoe UI, IRANSans, Arial;
       }
+      html,
       body {
         margin: 0;
+        padding: 0;
+        max-width: 100%;
+        overflow-x: hidden; /* جلوگیری از اسکرول افقی */
+      }
+      body {
         min-height: 100vh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         background: linear-gradient(135deg, var(--bg2), var(--bg));
         color: var(--txt);
-        padding: 20px;
+        padding: 16px 12px;
       }
       .wrap {
-        width: min(780px, 96vw);
+        width: 100%;
+        max-width: 780px;
+        margin: 0 auto;
       }
       .card {
         background: rgba(255, 255, 255, 0.06);
@@ -183,10 +192,10 @@
         <h1>بانک خودرو همکاران</h1>
 
         <div class="tabs">
-          <div class="tab active" data-cat="فروش">فروش</div>
+          <div class="tab active" data-cat="فروش کارکرده">فروش کارکرده</div>
           <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
-          <div class="tab" data-cat="خرید">خرید</div>
-          <div class="tab" data-cat="صفر">صفر</div>
+          <div class="tab" data-cat="درخواست خرید">درخواست خرید</div>
+          <div class="tab" data-cat="فروش صفر">فروش صفر</div>
         </div>
 
         <div class="section">
@@ -308,7 +317,7 @@
       tg.ready();
       const $ = (s) => document.querySelector(s);
 
-      let category = "فروش";
+      let category = "فروش کارکرده";
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document

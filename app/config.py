@@ -1,4 +1,3 @@
-# app/config.py
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -30,6 +29,8 @@ def build_bot_and_dispatcher():
     storage.bootstrap_admins(initial_env_admins=SETTINGS.ADMIN_IDS, owner_id=SETTINGS.OWNER_ID)
     storage.bootstrap_destinations(default_id=SETTINGS.TARGET_GROUP_ID)
     storage.bootstrap_allowed_channels(default_channel_id=SETTINGS.TARGET_GROUP_ID)
+    # کانال‌های عضویت اجباری کاربران (پیش‌فرض: کانال اصلی .env)
+    storage.bootstrap_required_channels(default_channel_id=SETTINGS.TARGET_GROUP_ID)
 
     session = AiohttpSession(proxy=SETTINGS.PROXY_URL) if SETTINGS.PROXY_URL else None
     bot = Bot(SETTINGS.BOT_TOKEN, session=session)

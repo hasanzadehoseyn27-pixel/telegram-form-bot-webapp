@@ -1,4 +1,3 @@
-# app/keyboards.py
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, WebAppInfo,
     InlineKeyboardMarkup, InlineKeyboardButton
@@ -18,12 +17,14 @@ def start_keyboard(webapp_url: str, is_admin: bool) -> ReplyKeyboardMarkup:
 # --- ریشهٔ پنل مدیریتی (Reply Keyboard) ---
 def admin_root_kb(is_owner: bool) -> ReplyKeyboardMarkup:
     """
-    ردیف اول: دو گزینهٔ اصلی
+    منوی اصلی پنل مدیریتی.
+    ردیف اول: مدیریت ادمین‌ها + (در صورت OWNER) مدیریت کانال‌های مجاز و کانال‌های من
     ردیف دوم: «بازگشت» تمام‌عرض
     """
     top = [KeyboardButton(text="👤 مدیریت ادمین‌ها")]
     if is_owner:
         top.append(KeyboardButton(text="📡 مدیریت کانال‌های مجاز"))
+        top.append(KeyboardButton(text="📣 کانال‌های من"))
     rows = [top, [KeyboardButton(text="🔙 بازگشت")]]
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -43,6 +44,16 @@ def admin_allowed_kb() -> ReplyKeyboardMarkup:
         KeyboardButton(text="➕ افزودن کانال مجاز"),
         KeyboardButton(text="🗑 حذف کانال مجاز"),
         KeyboardButton(text="📋 لیست کانال‌های مجاز"),
+    ]
+    row2 = [KeyboardButton(text="🔙 بازگشت به پنل")]
+    return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)
+
+# --- زیرمنو: کانال‌های من (عضویت اجباری برای کاربران عادی) ---
+def admin_my_channels_kb() -> ReplyKeyboardMarkup:
+    row1 = [
+        KeyboardButton(text="📋 لیست کانال‌های من"),
+        KeyboardButton(text="➕ افزودن کانال من"),
+        KeyboardButton(text="🗑 حذف کانال من"),
     ]
     row2 = [KeyboardButton(text="🔙 بازگشت به پنل")]
     return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)

@@ -1,4 +1,3 @@
-# app/handlers.py
 import json, re
 from uuid import uuid4
 import jdatetime
@@ -16,6 +15,7 @@ from .keyboards import (
     admin_root_kb,
     admin_admins_kb,
     admin_allowed_kb,
+    admin_my_channels_kb,
 )
 from .storage import (
     next_daily_number,
@@ -24,6 +24,8 @@ from .storage import (
     add_destination,  # فقط برای ثبت عنوان کانال/سازگاری
     list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     is_channel_allowed,
+    list_required_channels, add_required_channel, remove_required_channel,
+    get_required_channel_ids,
 )
 
 router = Router()
@@ -36,7 +38,8 @@ PENDING: dict[str, dict] = {}           # token -> {form, user_id, grp:{...}, ne
 PHOTO_WAIT: dict[int, dict] = {}        # user_id -> {token, remain}
 ADMIN_EDIT_WAIT: dict[int, dict] = {}   # admin_id -> {token, field}
 ADMIN_WAIT_INPUT: dict[int, dict] = {}  # admin_id -> {mode: add/remove}
-ACCESS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode: 'add'|'remove'}
+ACCESS_CH_WAIT: dict[int, dict] = {}    # owner_id -> {mode: 'add'|'remove'} برای کانال‌های مجاز ارسال
+MEMBERS_CH_WAIT: dict[int, dict] = {}   # owner_id -> {mode: 'add'|'remove'} برای «کانال‌های من»
 
 # ====== کمکی‌ها ======
 def to_jalali(date_iso: str) -> str:
@@ -86,20 +89,51 @@ def _parse_admin_price(text: str) -> tuple[bool, int]:
             return True, n
     return False, 0
 
-# --- چک عضویت کاربر در کانال اصلی (.env) ---
+# --- چک عضویت کاربر در کانال‌های موردنیاز ---
 async def _user_is_member(bot: Bot, user_id: int) -> bool:
-    try:
-        cm = await bot.get_chat_member(SETTINGS.TARGET_GROUP_ID, user_id)
-        return str(getattr(cm, "status", "")).lower() in {"member","administrator","creator","owner"}
-    except Exception:
-        return False
+    """
+    فقط برای کاربران عادی چک می‌کند که در همهٔ کانال‌های «کانال‌های من» عضو باشند.
+    ادمین‌ها (شامل OWNER) بدون نیاز به عضویت عبور می‌کنند.
+    """
+    if is_admin(user_id):
+        return True
+
+    channel_ids = get_required_channel_ids()
+    # اگر در «کانال‌های من» چیزی ثبت نشده باشد، کانال اصلی .env به‌صورت پیش‌فرض استفاده می‌شود
+    if not channel_ids and SETTINGS.TARGET_GROUP_ID:
+        channel_ids = [SETTINGS.TARGET_GROUP_ID]
+
+    if not channel_ids:
+        return True
+
+    for cid in channel_ids:
+        try:
+            cm = await bot.get_chat_member(cid, user_id)
+            status = str(getattr(cm, "status", "")).lower()
+            if status not in {"member", "administrator", "creator", "owner"}:
+                return False
+        except Exception:
+            return False
+    return True
 
 def _join_kb() -> types.InlineKeyboardMarkup:
-    return types.InlineKeyboardMarkup(
-        inline_keyboard=[
-            [types.InlineKeyboardButton(text="بانک خودرو", url="https://t.me/tetsbankkhodro")]
+    """
+    کیبورد عضویت؛ بر اساس لیست «کانال‌های من» اگر username ذخیره شده داشته باشند،
+    برای هرکدام یک دکمه t.me می‌سازد. در غیر این صورت روی یک کانال پیش‌فرض می‌افتد.
+    """
+    buttons: list[list[types.InlineKeyboardButton]] = []
+    for ch in list_required_channels():
+        username = (ch.get("username") or "").lstrip("@")
+        title = ch.get("title") or username or str(ch.get("id"))
+        if username:
+            url = f"https://t.me/{username}"
+            buttons.append([types.InlineKeyboardButton(text=title, url=url)])
+    if not buttons:
+        # حالت سازگاری قدیمی
+        buttons = [
+            [types.InlineKeyboardButton(text="کانال اصلی", url="https://t.me/tetsbankkhodro")]
         ]
-    )
+    return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # ====== متن پنل ادیت ادمین ======
 def admin_panel_text(form: dict) -> str:
@@ -199,16 +233,16 @@ async def on_start(message: types.Message):
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
 
-    # همیشه کیبورد پایینی را می‌فرستیم تا بعد از عضویت هم بدون /start قابل استفاده باشد
-    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
-    await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
-
-    # اگر عضو نیست، لینک عضویت را هم جداگانه می‌فرستیم (اما کیبورد را نگه می‌داریم)
+    # برای کاربران عادی، قبل از نمایش دکمهٔ فرم، عضویت در کانال‌های الزامی چک می‌شود
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "برای استفاده کامل از ربات، ابتدا عضو کانال زیر شوید:",
-            reply_markup=_join_kb()
+            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید و سپس دوباره /start را بزنید:",
+            reply_markup=_join_kb(),
         )
+        return
+
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
+    await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
@@ -245,6 +279,21 @@ async def admin_manage_allowed_root(message: types.Message):
         return
     kb = admin_allowed_kb()
     await message.answer("مدیریت کانال‌ها و گروه‌های مجاز:", reply_markup=kb)
+
+@router.message(F.text == "📣 کانال‌های من")
+async def admin_my_channels_root(message: types.Message):
+    """ورود به زیرمنوی «کانال‌های من» (فقط OWNER)."""
+    if not is_owner(message.from_user.id):
+        await message.answer(
+            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\n"
+            "برای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
+        )
+        return
+    kb = admin_my_channels_kb()
+    await message.answer(
+        "مدیریت کانال‌هایی که عضویت کاربران عادی در آن‌ها الزامی است:",
+        reply_markup=kb,
+    )
 
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
@@ -349,7 +398,7 @@ async def remove_allowed_channel_start(message: types.Message):
     ACCESS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
     await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
 
-# 🔒 فقط وقتی در حالت انتظار مدیریت کانال هستیم، این هندلر فعال می‌شود
+# 🔒 فقط وقتی در حالت انتظار مدیریت کانال (کانال‌های مجاز) هستیم، این هندلر فعال می‌شود
 @router.message(
     F.text,
     F.from_user.id.func(lambda uid: uid in ACCESS_CH_WAIT)
@@ -392,6 +441,90 @@ async def access_channel_flow(message: types.Message):
     else:
         await message.reply("وضعیت ناشناخته.")
     ACCESS_CH_WAIT.pop(message.from_user.id, None)
+
+# ====== مدیریت «کانال‌های من» (عضویت اجباری کاربران عادی، فقط OWNER) ======
+@router.message(F.text == "📋 لیست کانال‌های من")
+async def list_my_channels_msg(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
+        return
+    items = list_required_channels()
+    if not items:
+        await message.answer("هنوز هیچ کانالی در بخش «کانال‌های من» ثبت نشده است.")
+        return
+    lines = ["کانال‌ها/گروه‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است:"]
+    for ch in items:
+        cid = int(ch.get("id", 0))
+        title = ch.get("title") or ""
+        username = ch.get("username") or ""
+        extras = []
+        if username:
+            extras.append(f"@{str(username).lstrip('@')}")
+        if cid == int(SETTINGS.TARGET_GROUP_ID):
+            extras.append("کانال اصلی")
+        suffix = (" - " + " • ".join(extras)) if extras else ""
+        lines.append(f"- {cid}{suffix}")
+    await message.answer("\n".join(lines))
+
+@router.message(F.text == "➕ افزودن کانال من")
+async def add_my_channel_start(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
+        return
+    MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "add"}
+    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
+
+@router.message(F.text == "🗑 حذف کانال من")
+async def remove_my_channel_start(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید.")
+        return
+    MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
+    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
+
+# 🔒 فقط وقتی در حالت انتظار مدیریت «کانال‌های من» هستیم، این هندلر فعال می‌شود
+@router.message(
+    F.text,
+    F.from_user.id.func(lambda uid: uid in MEMBERS_CH_WAIT)
+)
+async def my_channels_flow(message: types.Message):
+    st = MEMBERS_CH_WAIT.get(message.from_user.id)
+    if not st:
+        return
+
+    ref = _extract_public_tme_username_from_link(message.text)
+    if not ref:
+        await message.reply(
+            "❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.\n"
+            "اگر کانال خصوصی است یا لینک joinchat/+ دارد، ابتدا به کانال یوزرنیم عمومی بدهید."
+        )
+        return
+
+    try:
+        chat = await message.bot.get_chat(ref)
+        cid = chat.id
+        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
+        username = getattr(chat, "username", None) or ref.lstrip("@")
+    except Exception:
+        await message.reply("❌ نتوانستم اطلاعات این لینک را بگیرم. مطمئن شوید ربات داخل کانال/گروه عضو است و یوزرنیم عمومی دارد.")
+        return
+
+    mode = st.get("mode")
+    if mode == "add":
+        ok = add_required_channel(cid, title=title, username=username)
+        if ok:
+            await message.reply(f"✅ کانال به لیست «کانال‌های من» اضافه شد.\nchat_id: {cid}\nعنوان: {title or username}")
+        else:
+            await message.reply("ℹ️ این کانال/گروه قبلاً در «کانال‌های من» ثبت شده بود.")
+    elif mode == "remove":
+        if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
+            await message.reply("⛔ امکان حذف «کانال اصلی (.env)» از بخش «کانال‌های من» وجود ندارد.")
+        else:
+            ok = remove_required_channel(cid)
+            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی در «کانال‌های من» ثبت نشده است.")
+    else:
+        await message.reply("وضعیت ناشناخته.")
+    MEMBERS_CH_WAIT.pop(message.from_user.id, None)
 
 # ====== دستورات راهنما ======
 @router.message(Command("id", "ids"))
@@ -484,7 +617,7 @@ async def on_webapp_data(message: types.Message):
     # گیت عضویت روی دریافت داده (بدون نیاز به /start مجدد)
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ ابتدا عضو کانال شوید و سپس دوباره تلاش کنید:",
+            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید و سپس دوباره فرم را ارسال کنید:",
             reply_markup=_join_kb()
         )
         return
@@ -637,7 +770,7 @@ async def cb_finish(call: types.CallbackQuery):
         pass
     await call.message.answer("پست اولیه منتشر شد ✅ و برای بررسی به ادمین‌ها ارسال گردید.")
 
-# ====== ویرایش‌ها توسط ادمین ======
+# ====== ویرایش‌ها توسط ادمین ====== (بدون تغییر اصلی، فقط حفظ کامل کد)
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
