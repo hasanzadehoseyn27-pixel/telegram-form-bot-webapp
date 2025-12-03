@@ -9,18 +9,18 @@ from datetime import date
 DATA = Path("/tmp/bot_data")
 DATA.mkdir(parents=True, exist_ok=True)
 
-DAILY_FILE = DATA / "daily.json"              # شمارنده‌ی سراسری آگهی
-ADMINS_FILE = DATA / "admins.json"            # لیست ادمین‌ها (ایدی عددی)
-DESTS_FILE = DATA / "destinations.json"       # لیست مقصدها (برای سازگاری قدیمی)
-ALLOWED_FILE = DATA / "allowed_channels.json" # فقط لیست کانال/گروه‌های مجاز ربات (ایدی عددی)
-MEMBERS_FILE = DATA / "required_channels.json"  # کانال‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است
+DAILY_FILE = DATA / "daily.json"               # شمارنده‌ی سراسری آگهی
+ADMINS_FILE = DATA / "admins.json"             # لیست ادمین‌ها
+DESTS_FILE = DATA / "destinations.json"        # لیست مقصدها (سازگاری قدیمی)
+ALLOWED_FILE = DATA / "allowed_channels.json"  # لیست کانال/گروه‌های مجاز ربات
+REQUIRED_FILE = DATA / "required_channels.json"  # «کانال‌های من» (عضویت اجباری کاربران عادی)
 
 # ==========================
-#  شماره آگهی (سراسری و بدون ریست روزانه)
+#  شماره آگهی
 # ==========================
 def next_daily_number() -> tuple[int, str]:
     today = date.today().isoformat()
-    data: dict = {"date": today, "num": 0}
+    data = {"date": today, "num": 0}
 
     if DAILY_FILE.exists():
         try:
@@ -34,7 +34,7 @@ def next_daily_number() -> tuple[int, str]:
         DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-    return int(data["num"]), today
+    return data["num"], today
 
 # ==========================
 #  ادمین‌ها
@@ -98,7 +98,7 @@ def is_owner(uid: int) -> bool:
     return int(uid) == _OWNER_ID
 
 # ==========================
-#  مقصدها (سازگاری با کد قدیمی)
+#  مقصدها (سازگاری قدیمی)
 # ==========================
 _DESTS: dict = {"list": [], "active": 0}
 
@@ -160,7 +160,7 @@ def get_active_id_and_title() -> tuple[int, str]:
     return aid, title
 
 # ==========================
-#  لیست کانال/گروه‌های مجاز ربات (Allowlist ارسال)
+#  کانال‌های مجاز ارسال
 # ==========================
 _ALLOWED_CHANNELS: set[int] = set()
 
@@ -217,27 +217,38 @@ def remove_allowed_channel(chat_id: int) -> bool:
     return True
 
 # ==========================
-#  کانال‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است («کانال‌های من»)
+#  «کانال‌های من» (عضویت اجباری کاربران عادی)
 # ==========================
 _REQUIRED_CHANNELS: list[dict] = []
 
 def _load_required() -> None:
     global _REQUIRED_CHANNELS
-    if MEMBERS_FILE.exists():
+    if REQUIRED_FILE.exists():
         try:
-            data = json.loads(MEMBERS_FILE.read_text(encoding="utf-8")) or []
-            if isinstance(data, list):
-                _REQUIRED_CHANNELS = data
-            else:
-                _REQUIRED_CHANNELS = list(data.get("list", []))
+            raw = json.loads(REQUIRED_FILE.read_text(encoding="utf-8")) or []
         except Exception:
-            _REQUIRED_CHANNELS = []
+            raw = []
+        items: list[dict] = []
+        for it in raw:
+            if isinstance(it, dict) and "id" in it:
+                items.append({
+                    "id": int(it.get("id")),
+                    "title": str(it.get("title") or ""),
+                    "username": str(it.get("username") or "").lstrip("@"),
+                })
+            elif isinstance(it, (int, str)):
+                try:
+                    cid = int(it)
+                    items.append({"id": cid, "title": "", "username": ""})
+                except Exception:
+                    continue
+        _REQUIRED_CHANNELS = items
     else:
         _REQUIRED_CHANNELS = []
 
 def _save_required() -> None:
     try:
-        MEMBERS_FILE.write_text(
+        REQUIRED_FILE.write_text(
             json.dumps(_REQUIRED_CHANNELS, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -245,25 +256,28 @@ def _save_required() -> None:
         pass
 
 def bootstrap_required_channels(default_channel_id: int | None, default_title: str = "", default_username: str = "") -> None:
-    """
-    در اولین اجرا، کانال اصلی (.env) را به‌عنوان کانال الزامی اضافه می‌کند
-    (اگر قبلاً چیزی ثبت نشده باشد).
-    """
     _load_required()
     if not default_channel_id:
+        _save_required()
         return
     cid = int(default_channel_id)
-    exists = any(int(ch.get("id", 0)) == cid for ch in _REQUIRED_CHANNELS)
-    if not exists:
-        _REQUIRED_CHANNELS.append(
-            {
-                "id": cid,
-                "title": str(default_title or ""),
-                # username بدون @ ذخیره می‌شود
-                "username": str(default_username or ""),
-            }
-        )
-        _save_required()
+    for ch in _REQUIRED_CHANNELS:
+        try:
+            if int(ch.get("id")) == cid:
+                if default_title and not ch.get("title"):
+                    ch["title"] = str(default_title)
+                if default_username and not ch.get("username"):
+                    ch["username"] = str(default_username).lstrip("@")
+                _save_required()
+                return
+        except Exception:
+            continue
+    _REQUIRED_CHANNELS.append({
+        "id": cid,
+        "title": str(default_title or ""),
+        "username": str(default_username or "").lstrip("@"),
+    })
+    _save_required()
 
 def list_required_channels() -> list[dict]:
     _load_required()
@@ -271,45 +285,54 @@ def list_required_channels() -> list[dict]:
 
 def get_required_channel_ids() -> list[int]:
     _load_required()
-    return [int(ch.get("id", 0)) for ch in _REQUIRED_CHANNELS if ch.get("id") is not None]
+    ids: list[int] = []
+    for ch in _REQUIRED_CHANNELS:
+        try:
+            ids.append(int(ch.get("id")))
+        except Exception:
+            continue
+    return ids
 
 def add_required_channel(chat_id: int, title: str = "", username: str = "") -> bool:
-    """
-    کانالی را به لیست «کانال‌های من» اضافه می‌کند.
-    username بدون @ ذخیره می‌شود.
-    """
     _load_required()
     cid = int(chat_id)
     uname = str(username or "").lstrip("@")
     for ch in _REQUIRED_CHANNELS:
-        if int(ch.get("id", 0)) == cid:
-            # اگر فقط عنوان/یوزرنیم عوض شده باشد، به‌روزرسانی می‌کنیم
-            changed = False
-            if title and ch.get("title") != title:
-                ch["title"] = title
-                changed = True
-            if uname and ch.get("username") != uname:
-                ch["username"] = uname
-                changed = True
-            if changed:
-                _save_required()
-            return False
-    _REQUIRED_CHANNELS.append(
-        {
-            "id": cid,
-            "title": str(title or ""),
-            "username": uname,
-        }
-    )
+        try:
+            if int(ch.get("id")) == cid:
+                changed = False
+                if title and ch.get("title") != title:
+                    ch["title"] = str(title)
+                    changed = True
+                if uname and ch.get("username") != uname:
+                    ch["username"] = uname
+                    changed = True
+                if changed:
+                    _save_required()
+                return False
+        except Exception:
+            continue
+    _REQUIRED_CHANNELS.append({
+        "id": cid,
+        "title": str(title or ""),
+        "username": uname,
+    })
     _save_required()
     return True
 
 def remove_required_channel(chat_id: int) -> bool:
     _load_required()
     cid = int(chat_id)
-    for idx, ch in enumerate(_REQUIRED_CHANNELS):
-        if int(ch.get("id", 0)) == cid:
-            _REQUIRED_CHANNELS.pop(idx)
-            _save_required()
-            return True
-    return False
+    idx = None
+    for i, ch in enumerate(_REQUIRED_CHANNELS):
+        try:
+            if int(ch.get("id")) == cid:
+                idx = i
+                break
+        except Exception:
+            continue
+    if idx is None:
+        return False
+    _REQUIRED_CHANNELS.pop(idx)
+    _save_required()
+    return True
