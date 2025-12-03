@@ -14,7 +14,7 @@ from ..storage import (
 from .state import (
     MAX_PHOTOS, PENDING, PHOTO_WAIT,
 )
-from .membership import _user_is_member, _join_kb
+from .membership import _user_is_member, build_join_kb      # ← اصلاح import
 from .common import (
     contains_persian_digits,
     price_words,
@@ -171,13 +171,15 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
 
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
+    # ---------- بررسی عضویت ----------
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
             "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس از دکمه «🔁 بررسی عضویت» استفاده کنید.",
-            reply_markup=_join_kb()
+            reply_markup=await build_join_kb(message.bot),   # ← جایگزین _join_kb()
         )
         return
 
+    # ---------- پردازش داده ----------
     try:
         data = json.loads(message.web_app_data.data or "{}")
     except Exception:
