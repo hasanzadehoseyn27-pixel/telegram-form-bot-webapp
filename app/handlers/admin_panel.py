@@ -5,7 +5,7 @@ from aiogram import Router, types, F
 
 from ..config import SETTINGS
 from ..keyboards import (
-    start_keyboard,          # ← اضافه شد
+    start_keyboard,          # مهم: برای برگشت به منوی اصلی
     admin_root_kb,
     admin_admins_kb,
     admin_allowed_kb,
@@ -54,8 +54,7 @@ async def admin_panel_root_msg(message: types.Message):
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
-# این دکمه در زیرمنوها (مثلاً «کانال‌های من») استفاده می‌شود
-# و کارش برگشت به همان پنل مدیریتی است.
+# دکمه‌ای که در زیرمنوها است و باید فقط به همین پنل مدیریتی برگرداند
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -64,15 +63,15 @@ async def admin_back_to_panel(message: types.Message):
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
-# این دکمه «بازگشت» پایین پنل مدیریتی اصلی است
-# و باید کاربر را برگرداند به کیبورد اصلی ربات.
-@router.message(F.text == "بازگشت")
+# دکمه‌ی «بازگشت» پایین پنل مدیریتی اصلی:
+# هر متنی که با «بازگشت» شروع شود (حتی اگر ایموجی یا فاصله داشته باشد)
+@router.message(F.text.func(lambda t: isinstance(t, str) and t.strip().startswith("بازگشت")))
 async def admin_exit_panel(message: types.Message):
-    # اگر ادمین نباشد، بگذار هندلرهای دیگر (در فایل‌های دیگر) آن را بگیرند
+    # اگر ادمین نباشد، نگذار این هندلر چیزی انجام دهد (شاید هندلر دیگری در جای دیگر بگیردش)
     if not is_admin(message.from_user.id):
         return
 
-    kb = start_keyboard(SETTINGS.WEBAPP_URL, True)  # ادمین است، پس is_admin=True
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, True)  # چون خودش ادمین است
     await message.answer("بازگشت.", reply_markup=kb)
 
 # --------------------------------------------------------------------------- #
