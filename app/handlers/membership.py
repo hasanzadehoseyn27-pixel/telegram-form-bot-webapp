@@ -8,19 +8,20 @@ from ..storage import (
     list_required_channels,
     is_channel_allowed,
     is_admin,
-    add_required_channel,           # ← برای به‌روزرسانی عنوان/یوزرنیم
+    add_required_channel,
 )
 from .common import to_jalali
 
 router = Router()
 
 # --------------------------------------------------------------------------- #
-#                       بررسی عضویت کاربر در کانال‌ها                         #
+#                     بررسی دقیقِ عضویت در همهٔ کانال‌ها                      #
 # --------------------------------------------------------------------------- #
 async def _user_is_member(bot: Bot, user_id: int) -> bool:
     """
-    اگر کاربر (یا ادمین‌ها) در تمام کانال‌های «اجباری» عضو باشد → True
-    در غیر این صورت → False
+    True  ← اگر کاربر (یا ادمین) در *همه* کانال‌های اجباری عضو باشد
+    False ← در غیر این صورت
+    در صورت هرگونه خطا در واکشی وضعیت عضویت، نتیجه را False در نظر می‌گیریم.
     """
     if is_admin(user_id):
         return True
@@ -30,30 +31,23 @@ async def _user_is_member(bot: Bot, user_id: int) -> bool:
         channel_ids = [SETTINGS.TARGET_GROUP_ID]
 
     if not channel_ids:
-        return True      # هیچ کانالی تعریف نشده است
+        return True
 
-    ok_any = False
     for cid in channel_ids:
         try:
             cm = await bot.get_chat_member(cid, user_id)
             status = str(getattr(cm, "status", "")).lower()
-            ok_any = True
             if status not in {"member", "administrator", "creator", "owner"}:
-                return False
+                return False            # عضو نیست
         except Exception:
-            continue
+            return False                # نتوانستیم وضعیت را بگیریم → احتیاطاً False
 
-    return True if ok_any else True   # حالت fail‑open (اگر خطای API داشتیم)
+    return True                          # در همه کانال‌ها عضو است
 
 # --------------------------------------------------------------------------- #
-#             ساخت کیبورد «عضویت در کانال‌ها» به‌صورت پویا و لینک‌دار          #
+#                 ساخت کیبورد «عضویت در کانال‌ها» (بدون تغییر)               #
 # --------------------------------------------------------------------------- #
 async def build_join_kb(bot: Bot) -> types.InlineKeyboardMarkup:
-    """
-    ● کانال عمومی  → دکمهٔ لینک‌دار t.me/<username>
-    ● کانال خصوصی و ربات=ادمین → لینک دعوت دائم
-    ● سایر موارد      → فقط نام (Callback بی‌اثر)
-    """
     rows: list[list[types.InlineKeyboardButton]] = []
 
     for ch in list_required_channels():
@@ -62,7 +56,6 @@ async def build_join_kb(bot: Bot) -> types.InlineKeyboardMarkup:
         title     = ch.get("title") or username
         invite    = None
 
-        # --- اگر اطلاعات ناقص است، یک بار از تلگرام واکشی می‌کنیم --- #
         if not title or (not username):
             try:
                 info = await bot.get_chat(cid)
@@ -83,8 +76,7 @@ async def build_join_kb(bot: Bot) -> types.InlineKeyboardMarkup:
             except Exception:
                 pass
 
-        # --- دکمه --- #
-        if username:  # عمومی
+        if username:  # کانال عمومی
             rows.append(
                 [types.InlineKeyboardButton(text=title or username,
                                             url=f"https://t.me/{username}")]
@@ -105,14 +97,13 @@ async def build_join_kb(bot: Bot) -> types.InlineKeyboardMarkup:
                                                 callback_data=f"info:{cid}")]
                 )
 
-    # دکمهٔ بررسی عضویت
     rows.append(
         [types.InlineKeyboardButton(text="🔁 بررسی عضویت", callback_data="check_membership")]
     )
     return types.InlineKeyboardMarkup(inline_keyboard=rows)
 
 # --------------------------------------------------------------------------- #
-#                 سایر callback‑ها و فرمان‌های بخش عضویت                     #
+#           بقیهٔ کد (cb_check_membership و …) بدون تغییر باقی می‌ماند        #
 # --------------------------------------------------------------------------- #
 @router.callback_query(F.data == "check_membership")
 async def cb_check_membership(call: types.CallbackQuery):
