@@ -94,6 +94,9 @@ async def _user_is_member(bot: Bot, user_id: int) -> bool:
     """
     فقط برای کاربران عادی چک می‌کند که در همهٔ کانال‌های «کانال‌های من» عضو باشند.
     ادمین‌ها (شامل OWNER) بدون نیاز به عضویت عبور می‌کنند.
+
+    نکته: اگر ربات نتواند در کانالی عضویت کاربر را چک کند (خطای Telegram)،
+    آن کانال را نادیده می‌گیرد تا کاربر بی‌دلیل گیر نکند.
     """
     if is_admin(user_id):
         return True
@@ -106,39 +109,69 @@ async def _user_is_member(bot: Bot, user_id: int) -> bool:
     if not channel_ids:
         return True
 
+    ok_any = False
     for cid in channel_ids:
         try:
             cm = await bot.get_chat_member(cid, user_id)
             status = str(getattr(cm, "status", "")).lower()
+            ok_any = True
             if status not in {"member", "administrator", "creator", "owner"}:
                 return False
         except Exception:
-            return False
+            # اگر ربات نتواند وضعیت عضویت را در این کانال بفهمد،
+            # برای جلوگیری از مشکل، این کانال را نادیده می‌گیریم.
+            continue
+
+    # اگر هیچ‌جا نتوانست چک کند، اجازه می‌دهیم (fail-open)
+    if not ok_any:
+        return True
     return True
 
 def _join_kb() -> types.InlineKeyboardMarkup:
     """
     کیبورد عضویت:
-    - برای هر کانالِ «کانال‌های من» که username دارد، یک دکمه t.me می‌سازد
+    - برای هر کانالِ «کانال‌های من» یک ردیف می‌سازد
+      * اگر username داشته باشد → دکمه لینک‌دار t.me/username
+      * اگر نداشته باشد → دکمه متنی با ID (غیرکلیک‌دار واقعی)
     - پایین همهٔ دکمه‌ها، یک دکمه «🔁 بررسی عضویت» می‌گذارد
     """
     buttons: list[list[types.InlineKeyboardButton]] = []
-    for ch in list_required_channels():
+    reqs = list_required_channels()
+
+    for ch in reqs:
+        cid = int(ch.get("id", 0))
         username = (ch.get("username") or "").lstrip("@")
-        title = ch.get("title") or username or str(ch.get("id"))
+        title = ch.get("title") or username or str(cid)
+
         if username:
             url = f"https://t.me/{username}"
             buttons.append([types.InlineKeyboardButton(text=title, url=url)])
+        else:
+            # فقط نمایش آیدی، قابل کلیک نیست (callback بی‌اثر)
+            text = f"{title} (ID: {cid})" if title else str(cid)
+            buttons.append([
+                types.InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"info:{cid}"
+                )
+            ])
+
     if not buttons:
         # حالت سازگاری قدیمی
         buttons = [
             [types.InlineKeyboardButton(text="کانال اصلی", url="https://t.me/tetsbankkhodro")]
         ]
+
     # دکمه بررسی عضویت
     buttons.append([
         types.InlineKeyboardButton(text="🔁 بررسی عضویت", callback_data="check_membership")
     ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
+
+# برای دکمه‌های info: فقط یک پیام کوچک نشان می‌دهیم
+@router.callback_query(F.data.startswith("info:"))
+async def cb_info_channel(call: types.CallbackQuery):
+    await call.answer("این فقط شناسه کانال است؛ برای عضویت، کانال را با سرچ تلگرام پیدا کنید.", show_alert=True)
 
 # ====== متن پنل ادیت ادمین ======
 def admin_panel_text(form: dict) -> str:
@@ -247,7 +280,7 @@ async def on_start(message: types.Message):
     # کاربر عادی → اول عضویت چک می‌شود
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید، سپس روی «🔁 بررسی عضویت» بزنید:",
+            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید و سپس روی «🔁 بررسی عضویت» بزنید:",
             reply_markup=_join_kb(),
         )
         return
@@ -507,7 +540,11 @@ async def list_my_channels_msg(message: types.Message):
         if cid == int(SETTINGS.TARGET_GROUP_ID):
             extras.append("کانال اصلی")
         suffix = (" - " + " • ".join(extras)) if extras else ""
-        lines.append(f"- {cid}{suffix}")
+        label = title or ""
+        if label:
+            lines.append(f"- {cid} - {label}{suffix}")
+        else:
+            lines.append(f"- {cid}{suffix}")
     await message.answer("\n".join(lines))
 
 @router.message(F.text == "➕ افزودن کانال من")
@@ -661,7 +698,7 @@ async def on_webapp_data(message: types.Message):
     # گیت عضویت روی دریافت داده (بدون نیاز به /start مجدد)
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس دوباره /start بزنید و فرم را ارسال کنید.",
+            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس از دکمه «🔁 بررسی عضویت» استفاده کنید.",
             reply_markup=_join_kb()
         )
         return
