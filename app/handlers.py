@@ -118,8 +118,9 @@ async def _user_is_member(bot: Bot, user_id: int) -> bool:
 
 def _join_kb() -> types.InlineKeyboardMarkup:
     """
-    کیبورد عضویت؛ بر اساس لیست «کانال‌های من» اگر username ذخیره شده داشته باشند،
-    برای هرکدام یک دکمه t.me می‌سازد. در غیر این صورت روی یک کانال پیش‌فرض می‌افتد.
+    کیبورد عضویت:
+    - برای هر کانالِ «کانال‌های من» که username دارد، یک دکمه t.me می‌سازد
+    - پایین همهٔ دکمه‌ها، یک دکمه «🔁 بررسی عضویت» می‌گذارد
     """
     buttons: list[list[types.InlineKeyboardButton]] = []
     for ch in list_required_channels():
@@ -133,6 +134,10 @@ def _join_kb() -> types.InlineKeyboardMarkup:
         buttons = [
             [types.InlineKeyboardButton(text="کانال اصلی", url="https://t.me/tetsbankkhodro")]
         ]
+    # دکمه بررسی عضویت
+    buttons.append([
+        types.InlineKeyboardButton(text="🔁 بررسی عضویت", callback_data="check_membership")
+    ])
     return types.InlineKeyboardMarkup(inline_keyboard=buttons)
 
 # ====== متن پنل ادیت ادمین ======
@@ -233,21 +238,60 @@ async def on_start(message: types.Message):
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
 
-    # برای کاربران عادی، قبل از نمایش دکمهٔ فرم، عضویت در کانال‌های الزامی چک می‌شود
+    # اگر ادمین است، بدون شرط عضویت، مستقیم فرم را می‌بیند
+    if is_admin(message.from_user.id):
+        kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
+        await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
+        return
+
+    # کاربر عادی → اول عضویت چک می‌شود
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید و سپس دوباره /start را بزنید:",
+            "⛔ برای استفاده از ربات، ابتدا در همهٔ کانال‌های زیر عضو شوید، سپس روی «🔁 بررسی عضویت» بزنید:",
             reply_markup=_join_kb(),
         )
         return
 
-    kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
+    # عضو است → حالا کیبورد فرم را می‌گیرد
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
     await message.answer("برای ثبت آگهی، دکمه زیر را بزنید:", reply_markup=kb)
 
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main(message: types.Message):
     kb = start_keyboard(SETTINGS.WEBAPP_URL, is_admin(message.from_user.id))
     await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
+
+# ====== دکمه «🔁 بررسی عضویت» (INLINE) ======
+@router.callback_query(F.data == "check_membership")
+async def cb_check_membership(call: types.CallbackQuery):
+    user_id = call.from_user.id
+
+    # ادمین‌ها اصلاً قرار نیست این دکمه را ببینند، ولی اگر دیدند → همیشه اوکی
+    if is_admin(user_id):
+        try:
+            kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
+            await call.message.answer("شما ادمین هستید، می‌توانید از فرم استفاده کنید.", reply_markup=kb)
+        except Exception:
+            pass
+        await call.answer()
+        return
+
+    ok = await _user_is_member(call.bot, user_id)
+    if not ok:
+        await call.answer("هنوز در همهٔ کانال‌ها عضو نیستید.", show_alert=True)
+        try:
+            await call.message.answer("❗ باید در تمام کانال‌های لیست‌شده عضو باشید، سپس دوباره روی «🔁 بررسی عضویت» بزنید.")
+        except Exception:
+            pass
+        return
+
+    # اگر همه‌جا عضو است → کیبورد فرم را فعال می‌کنیم
+    try:
+        kb = start_keyboard(SETTINGS.WEBAPP_URL, False)
+        await call.message.answer("✅ عضویت شما تایید شد. حالا می‌توانید روی دکمه «📝 فرم ثبت آگهی» بزنید.", reply_markup=kb)
+    except Exception:
+        pass
+    await call.answer("عضویت شما تایید شد.", show_alert=False)
 
 # ====== پنل مدیریتی (ریشه و زیرمنوها) ======
 @router.message(F.text == "⚙️ پنل مدیریتی")
@@ -617,7 +661,7 @@ async def on_webapp_data(message: types.Message):
     # گیت عضویت روی دریافت داده (بدون نیاز به /start مجدد)
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید و سپس دوباره فرم را ارسال کنید:",
+            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس دوباره /start بزنید و فرم را ارسال کنید.",
             reply_markup=_join_kb()
         )
         return
@@ -770,7 +814,7 @@ async def cb_finish(call: types.CallbackQuery):
         pass
     await call.message.answer("پست اولیه منتشر شد ✅ و برای بررسی به ادمین‌ها ارسال گردید.")
 
-# ====== ویرایش‌ها توسط ادمین ====== (بدون تغییر اصلی، فقط حفظ کامل کد)
+# ====== ویرایش‌ها توسط ادمین ======
 @router.callback_query(F.data.startswith("edit_price:"))
 async def cb_edit_price(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
