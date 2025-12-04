@@ -7,28 +7,24 @@ from ..config import SETTINGS
 from ..keyboards import (
     admin_root_kb,
     admin_admins_kb,
-    admin_allowed_kb,
     admin_my_channels_kb,
-    start_keyboard,           # ← اضافه شد برای برگشت به منوی اصلی
+    start_keyboard,
 )
 from ..storage import (
     list_admins, add_admin, remove_admin, is_admin, is_owner,
-    list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     list_required_channels, add_required_channel, remove_required_channel,
-    add_destination,
 )
-from .state import ADMIN_WAIT_INPUT, ACCESS_CH_WAIT, MEMBERS_CH_WAIT
+from .state import ADMIN_WAIT_INPUT, MEMBERS_CH_WAIT
 
 router = Router()
 
 # --------------------------------------------------------------------------- #
-#                              کمکى‌ها / Helpers                              #
+#                              Helpers                                        #
 # --------------------------------------------------------------------------- #
 
 def _extract_public_tme_username_from_link(text: str) -> str | None:
     """
     فقط لینک‌های عمومی t.me/username را می‌پذیریم.
-    joinchat/+ و t.me/c/... پشتیبانی نمی‌شوند.
     خروجی نمونه: '@username'
     """
     t = (text or "").strip()
@@ -43,7 +39,7 @@ def _extract_public_tme_username_from_link(text: str) -> str | None:
     return "@" + slug.lstrip("@")
 
 # --------------------------------------------------------------------------- #
-#                             ریشهٔ پنل مدیریتی                               #
+#                             ریشه پنل مدیریتی                                #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "⚙️ پنل مدیریتی")
@@ -55,31 +51,31 @@ async def admin_panel_root_msg(message: types.Message):
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
 
-# 🔙 این دکمه را در *منوی پنل مدیریتی* می‌زنیم تا برگردیم به منوی اصلی استارت
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main_menu(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
+
     if not SETTINGS.WEBAPP_URL:
         await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
         return
+
     kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
     await message.answer("بازگشت به منوی اصلی ربات:", reply_markup=kb)
 
 
-# این دکمه در زیرمنوها است (ادمین‌ها، کانال‌های مجاز، کانال‌های من)
-# و فقط کاربر را به خودِ پنل مدیریتی برمی‌گرداند
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
+
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
 # --------------------------------------------------------------------------- #
-#                           بخش «ادمین‌ها»                                   #
+#                            مدیریت ادمین‌ها                                  #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "👤 مدیریت ادمین‌ها")
@@ -87,17 +83,15 @@ async def admin_manage_admins_root(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
+
     kb = admin_admins_kb()
     await message.answer("مدیریت ادمین‌ها:", reply_markup=kb)
+
 
 @router.message(F.text == "📋 لیست ادمین‌ها")
 async def admin_list_msg(message: types.Message):
     """
-    فهرست ادمین‌ها را با شکل زیر می‌فرستد:
-        123456789  —  @username
-    یا اگر کاربر username ندارد:
-        123456789  —  Ali Rezaei
-    و اگر خطا در واکشی رخ دهد فقط آیدی نمایش داده می‌شود.
+    نمایش لیست ادمین‌ها با یوزرنیم در صورت وجود
     """
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
@@ -121,119 +115,74 @@ async def admin_list_msg(message: types.Message):
 
     await message.answer("\n".join(lines))
 
+
+# ---------- افزودن / حذف ادمین -----------
+
 @router.message(F.text == "➕ افزودن ادمین")
 async def admin_add_msg(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
+
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "add"}
-    await message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
+    await message.answer(
+        "آیدی عددی یا یوزرنیم کاربر را ارسال کنید (مثل 123456789 یا @username):"
+    )
+
 
 @router.message(F.text == "🗑 حذف ادمین")
 async def admin_remove_msg(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
-    ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
-    await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
 
-@router.message(F.text.regexp(r"^\d{4,}$"))
-async def admin_id_input(message: types.Message):
+    ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
+    await message.answer(
+        "آیدی عددی یا یوزرنیم ادمین را ارسال کنید (مثل 123456789 یا @username):"
+    )
+
+
+@router.message(F.text, F.from_user.id.func(lambda uid: uid in ADMIN_WAIT_INPUT))
+async def admin_id_or_username_input(message: types.Message):
+    """
+    ورودی می‌تواند آیدی عددی یا یوزرنیم باشد.
+    """
     w = ADMIN_WAIT_INPUT.get(message.from_user.id)
     if not w or not is_admin(message.from_user.id):
         return
-    uid = int(message.text.strip())
+
+    raw = (message.text or "").strip()
+    uid = None
+
+    # حالت ۱ → آیدی عددی
+    if re.fullmatch(r"\d{4,}", raw):
+        uid = int(raw)
+
+    else:
+        # حالت ۲ → یوزرنیم
+        uname = raw.lstrip("@")
+        if not re.fullmatch(r"[A-Za-z0-9_]{5,}", uname):
+            await message.reply("یوزرنیم نامعتبر است. نمونه صحیح: @myusername")
+            return
+
+        try:
+            chat = await message.bot.get_chat("@" + uname)
+            uid = chat.id
+        except Exception:
+            await message.reply("کاربری با این یوزرنیم یافت نشد.")
+            return
+
     mode = w["mode"]
+
     if mode == "add":
         ok = add_admin(uid)
-        await message.reply("✅ اضافه شد." if ok else "ℹ️ قبلاً ادمین بوده.")
+        await message.reply("✅ ادمین اضافه شد." if ok else "ℹ️ قبلاً ادمین بوده.")
+
     elif mode == "remove":
         ok = remove_admin(uid)
-        await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
+        await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف وجود ندارد.")
+
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
-
-# --------------------------------------------------------------------------- #
-#                       بخش «کانال‌های مجاز ارسال» (OWNER)                   #
-# --------------------------------------------------------------------------- #
-
-@router.message(F.text == "📡 مدیریت کانال‌های مجاز")
-async def admin_manage_allowed_root(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer(
-            "⛔ شما در حال حاضر به این بخش دسترسی ندارید.\nبرای فعال‌سازی دسترسی، با مدیر اصلی هماهنگ کنید."
-        )
-        return
-    kb = admin_allowed_kb()
-    await message.answer("مدیریت کانال‌ها و گروه‌های مجاز:", reply_markup=kb)
-
-@router.message(F.text == "📋 لیست کانال‌های مجاز")
-async def list_allowed_channels_msg(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
-        return
-    ids = list_allowed_channels()
-    if not ids:
-        await message.answer("هیچ کانال/گروه مجازی ثبت نشده است.")
-        return
-    lines = ["کانال‌ها/گروه‌های مجاز ربات:"]
-    for cid in ids:
-        flag = " (کانال اصلی)" if int(cid) == int(SETTINGS.TARGET_GROUP_ID) else ""
-        lines.append(f"- {cid}{flag}")
-    await message.answer("\n".join(lines))
-
-@router.message(F.text == "➕ افزودن کانال مجاز")
-async def add_allowed_channel_start(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
-        return
-    ACCESS_CH_WAIT[message.from_user.id] = {"mode": "add"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
-
-@router.message(F.text == "🗑 حذف کانال مجاز")
-async def remove_allowed_channel_start(message: types.Message):
-    if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
-        return
-    ACCESS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
-
-@router.message(F.text, F.from_user.id.func(lambda uid: uid in ACCESS_CH_WAIT))
-async def access_channel_flow(message: types.Message):
-    st = ACCESS_CH_WAIT.get(message.from_user.id)
-    if not st:
-        return
-
-    ref = _extract_public_tme_username_from_link(message.text)
-    if not ref:
-        await message.reply(
-            "❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.\n"
-            "اگر کانال خصوصی است یا لینک joinchat/+ دارد، ابتدا آن را عمومی کنید."
-        )
-        return
-
-    try:
-        chat = await message.bot.get_chat(ref)
-        cid = chat.id
-        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
-    except Exception:
-        await message.reply("❌ ربات نتوانست اطلاعات کانال را بگیرد.\nمطمئن شوید داخل کانال عضو است و یوزرنیم عمومی دارد.")
-        return
-
-    mode = st["mode"]
-    if mode == "add":
-        ok = add_allowed_channel(cid)
-        if ok:
-            add_destination(cid, title)  # برای ثبت عنوان
-            await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
-        else:
-            await message.reply("ℹ️ این کانال قبلاً در لیست بود.")
-    elif mode == "remove":
-        if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
-            await message.reply("⛔ امکان حذف «کانال اصلی» وجود ندارد.")
-        else:
-            ok = remove_allowed_channel(cid)
-            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی در لیست نبود.")
-    ACCESS_CH_WAIT.pop(message.from_user.id, None)
 
 # --------------------------------------------------------------------------- #
 #                      بخش «کانال‌های من» (عضویت اجباری)                     #
@@ -242,21 +191,28 @@ async def access_channel_flow(message: types.Message):
 @router.message(F.text == "📣 کانال‌های من")
 async def admin_my_channels_root(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        await message.answer("⛔ دسترسی فقط برای مدیر اصلی مجاز است.")
         return
+
     kb = admin_my_channels_kb()
-    await message.answer("مدیریت کانال‌هایی که عضویت کاربران عادی در آن‌ها الزامی است:", reply_markup=kb)
+    await message.answer(
+        "مدیریت کانال‌هایی که عضویت کاربران عادی در آن‌ها الزامی است:",
+        reply_markup=kb,
+    )
+
 
 @router.message(F.text == "📋 لیست کانال‌های من")
 async def list_my_channels_msg(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        await message.answer("⛔ شما به این بخش دسترسی ندارید.")
         return
+
     items = list_required_channels()
     if not items:
         await message.answer("هنوز هیچ کانالی ثبت نشده است.")
         return
-    lines = ["کانال‌هایی که عضویت در آن‌ها برای کاربران عادی الزامی است:"]
+
+    lines = ["کانال‌های اجباری:"]
     for ch in items:
         cid = int(ch["id"])
         title = ch.get("title") or ""
@@ -264,25 +220,31 @@ async def list_my_channels_msg(message: types.Message):
         extras = [f"@{username}"] if username else []
         if cid == int(SETTINGS.TARGET_GROUP_ID):
             extras.append("کانال اصلی")
-        suffix = (" - " + " • ".join(extras)) if extras else ""
-        lines.append(f"- {cid}{' - ' + title if title else ''}{suffix}")
+        suffix = (" • " + " • ".join(extras)) if extras else ""
+        lines.append(f"- {cid} - {title}{suffix}")
+
     await message.answer("\n".join(lines))
+
 
 @router.message(F.text == "➕ افزودن کانال من")
 async def add_my_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        await message.answer("⛔ فقط مدیر اصلی اجازه دارد.")
         return
+
     MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "add"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه را بفرستید (مثال: https://t.me/testchannel).")
+    await message.answer("لینک عمومی کانال را ارسال کنید (مثال: https://t.me/testchannel)")
+
 
 @router.message(F.text == "🗑 حذف کانال من")
 async def remove_my_channel_start(message: types.Message):
     if not is_owner(message.from_user.id):
-        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        await message.answer("⛔ فقط مدیر اصلی اجازه دارد.")
         return
+
     MEMBERS_CH_WAIT[message.from_user.id] = {"mode": "remove"}
-    await message.answer("لطفاً لینک عمومی کانال/گروه برای حذف را بفرستید (مثال: https://t.me/testchannel).")
+    await message.answer("لینک کانال جهت حذف را ارسال کنید.")
+
 
 @router.message(F.text, F.from_user.id.func(lambda uid: uid in MEMBERS_CH_WAIT))
 async def my_channels_flow(message: types.Message):
@@ -292,9 +254,7 @@ async def my_channels_flow(message: types.Message):
 
     ref = _extract_public_tme_username_from_link(message.text)
     if not ref:
-        await message.reply(
-            "❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.\nاگر خصوصی است، ابتدا کانال را عمومی کنید."
-        )
+        await message.reply("❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.")
         return
 
     try:
@@ -303,20 +263,23 @@ async def my_channels_flow(message: types.Message):
         title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
         username = getattr(chat, "username", None) or ref.lstrip("@")
     except Exception:
-        await message.reply("❌ ربات نتوانست اطلاعات کانال را بگیرد.")
+        await message.reply("❌ نتوانستم اطلاعات کانال را دریافت کنم.")
         return
 
     mode = st["mode"]
+
     if mode == "add":
         ok = add_required_channel(cid, title=title, username=username)
         if ok:
-            await message.reply(f"✅ اضافه شد.\nchat_id: {cid}\nعنوان: {title or username}")
+            await message.reply(f"✅ اضافه شد.\nchat_id: {cid}\nعنوان: {title}")
         else:
-            await message.reply("ℹ️ قبلاً ثبت شده بود.")
+            await message.reply("ℹ️ این کانال از قبل ثبت شده بود.")
+
     elif mode == "remove":
         if int(cid) == int(SETTINGS.TARGET_GROUP_ID):
-            await message.reply("⛔ امکان حذف «کانال اصلی» وجود ندارد.")
+            await message.reply("⛔ حذف کانال اصلی مجاز نیست.")
         else:
             ok = remove_required_channel(cid)
-            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی ثبت نشده است.")
+            await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی ثبت نشده.")
+
     MEMBERS_CH_WAIT.pop(message.from_user.id, None)

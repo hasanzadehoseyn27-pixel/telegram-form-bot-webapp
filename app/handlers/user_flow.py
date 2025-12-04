@@ -109,6 +109,7 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
     desc = (payload.get("desc") or "").strip()
     phone = (payload.get("phone") or "").strip()
 
+    # --- جلوگیری از ارقام فارسی ---
     if (
         contains_persian_digits(car)
         or contains_persian_digits(year)
@@ -118,14 +119,28 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
     ):
         return False, "لطفاً اعداد را فقط با رقم‌های لاتین (0-9) وارد کنید.", None
 
-    if not car or len(car) > 10 or re.search(r"\d{5,}", car):
-        return False, "نام خودرو نامعتبر است.", None
+
+    # -----------------------
+    # نام خودرو: فارسی + انگلیسی + عدد + فاصله (حداکثر ۴۰ کاراکتر)
+    # -----------------------
+    if not re.fullmatch(r"[آ-یA-Za-z0-9\s]{2,40}", car):
+        return False, "نام خودرو باید فارسی یا انگلیسی و بین 2 تا 40 کاراکتر باشد.", None
+
+    # جلوگیری از رشته‌های غیرطبیعی (مثلاً 999999999)
+    if re.search(r"\d{5,}", car):
+        return False, "عدد بیش از ۴ رقم پشت‌سرهم در نام خودرو مجاز نیست.", None
+
+
+    # سایر قوانین مثل قبل
     if not re.fullmatch(r"[0-9]{4}", year):
         return False, "سال ساخت باید ۴ رقم لاتین باشد.", None
+
     if not re.fullmatch(r"[آ-ی\s]{1,6}", color):
         return False, "رنگ باید حروف فارسی (حداکثر ۶) باشد.", None
+
     if not re.fullmatch(r"[0-9]{1,6}", km):
         return False, "کارکرد باید عددی لاتین حداکثر ۶ رقمی باشد.", None
+
     if ins and not re.fullmatch(r"[0-9]{1,2}", ins):
         return False, "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.", None
 
@@ -136,8 +151,10 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
     if not ok_num:
         return False, "قیمت را با ارقام لاتین و به صورت «میلیون تومان» وارد کنید (مثلاً 50.5).", None
 
+    # قیمت
     price_num = None
     price_words_str = None
+
     if cat == "فروش همکاری":
         if toman > 0:
             price_num = toman
@@ -163,7 +180,9 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
         "username": "",
         "photos": [],
     }
+
     return True, None, form
+
 
 # --------------------------------------------------------------------------- #
 #               دریافت فرم وب‌اپ و عکس‌ها + انتشار اولیه                      #
