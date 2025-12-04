@@ -24,19 +24,28 @@ router = Router()
 
 def _extract_public_tme_username_from_link(text: str) -> str | None:
     """
-    فقط لینک‌های عمومی t.me/username را می‌پذیریم.
-    خروجی نمونه: '@username'
+    قبول لینک‌ها به شکل:
+    - https://t.me/username
+    - t.me/username
+    و username باید ۳ تا ۳۲ کاراکتر، شامل حروف، عدد و _
     """
     t = (text or "").strip()
     m = re.search(r"(?:https?://)?t\.me/([^ \n]+)", t)
     if not m:
         return None
+
     slug = m.group(1).split("?")[0].strip()
+
+    # جلوگیری از لینک‌های خصوصی
     if slug.startswith("+") or slug.startswith("joinchat/") or slug.startswith("c/"):
         return None
-    if not re.fullmatch(r"[A-Za-z0-9_]{5,}", slug):
+
+    # یوزرنیم معتبر تلگرام: 3–32 کاراکتر
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,32}", slug):
         return None
+
     return "@" + slug.lstrip("@")
+
 
 # --------------------------------------------------------------------------- #
 #                             ریشه پنل مدیریتی                                #
