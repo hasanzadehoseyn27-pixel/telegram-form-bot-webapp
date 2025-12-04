@@ -10,7 +10,7 @@
       :root {
         --bg1: #0f172a;
         --bg2: #0b1220;
-        --card: rgba(255, 255, 255, 0.08);
+        --card: rgba(255, 255, 255, 0.06);
         --input-bg: #101a2e;
         --border: rgba(255, 255, 255, 0.18);
         --text: #e5e7eb;
@@ -39,11 +39,10 @@
         width: 100%;
         max-width: 800px;
       }
-
       .card {
         background: var(--card);
         border: 1px solid var(--border);
-        border-radius: 20px;
+        border-radius: 18px;
         padding: 22px;
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(8px);
@@ -60,7 +59,6 @@
         gap: 8px;
         margin-bottom: 18px;
       }
-
       .tab {
         flex: 1;
         padding: 12px;
@@ -69,14 +67,11 @@
         border-radius: var(--radius);
         text-align: center;
         cursor: pointer;
-        user-select: none;
         transition: 0.2s;
       }
-
       .tab.active {
-        border-color: var(--accent);
         color: var(--accent);
-        background: #16253c;
+        border-color: var(--accent);
         font-weight: bold;
       }
 
@@ -89,20 +84,14 @@
 
       .grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
         gap: 16px;
+        grid-template-columns: 1fr 1fr;
         margin-bottom: 14px;
       }
-
       @media (max-width: 600px) {
         .grid {
           grid-template-columns: 1fr;
         }
-      }
-
-      label {
-        margin-bottom: 5px;
-        font-size: 14px;
       }
 
       input,
@@ -111,13 +100,12 @@
         width: 100%;
         padding: 12px;
         border-radius: var(--radius);
-        border: 1px solid var(--border);
         background: #0b1526;
+        border: 1px solid var(--border);
         color: var(--text);
         outline: none;
         font-size: 15px;
       }
-
       input:focus,
       textarea:focus,
       select:focus {
@@ -129,17 +117,19 @@
         resize: vertical;
       }
 
-      .muted {
-        font-size: 12px;
-        margin-top: 3px;
-        color: var(--muted);
+      label {
+        margin-bottom: 5px;
+        font-size: 14px;
       }
-
-      .err {
-        min-height: 16px;
+      .muted {
+        color: var(--muted);
         font-size: 12px;
         margin-top: 4px;
+      }
+      .err {
         color: var(--danger);
+        min-height: 16px;
+        font-size: 12px;
       }
 
       .row {
@@ -147,27 +137,26 @@
         gap: 12px;
         margin-top: 16px;
       }
-
       button {
         flex: 1;
         padding: 12px;
+        background: var(--accent);
         border: none;
         border-radius: var(--radius);
-        background: var(--accent);
         font-weight: bold;
         cursor: pointer;
       }
 
+      /* Dialog */
       .dialog {
         position: fixed;
         inset: 0;
+        background: rgba(0, 0, 0, 0.55);
         display: none;
         align-items: center;
         justify-content: center;
-        background: rgba(0, 0, 0, 0.55);
         padding: 16px;
       }
-
       .box {
         background: var(--input-bg);
         border: 1px solid var(--border);
@@ -176,13 +165,12 @@
         width: 100%;
         max-width: 550px;
       }
-
       .preview {
         border: 1px dashed var(--border);
         padding: 12px;
         border-radius: var(--radius);
-        color: var(--muted);
         white-space: pre-line;
+        color: var(--muted);
       }
     </style>
   </head>
@@ -200,10 +188,11 @@
         </div>
 
         <div class="section">
+          <!-- نام خودرو و سال -->
           <div class="grid">
             <div>
               <label>نام خودرو *</label>
-              <input id="car" placeholder="مثلاً: پژو 206 یا Sonata" />
+              <input id="car" placeholder="مثلاً: پژو 206 یا Sonata 2018" />
               <div class="err" id="e_car"></div>
             </div>
 
@@ -214,6 +203,7 @@
             </div>
           </div>
 
+          <!-- رنگ و کارکرد -->
           <div class="grid">
             <div>
               <label>رنگ *</label>
@@ -228,13 +218,13 @@
             </div>
           </div>
 
+          <!-- بیمه و گیربکس -->
           <div class="grid">
             <div>
               <label>مهلت بیمه (ماه)</label>
               <input id="insurance" inputmode="numeric" placeholder="مثلاً 6" />
               <div class="err" id="e_ins"></div>
             </div>
-
             <div>
               <label>گیربکس</label>
               <select id="gear">
@@ -245,17 +235,17 @@
             </div>
           </div>
 
-          <!-- --------------- قیمت بر اساس میلیون تومان --------------- -->
-
+          <!-- قیمت -->
           <label>قیمت (بر اساس میلیون تومان) *</label>
           <input
             id="price"
-            inputmode="numeric"
-            placeholder="مثلاً: 80 یا 1200"
+            inputmode="decimal"
+            placeholder="مثلاً: 80 یا 2500 یا 120.5"
           />
           <div id="price_hint" class="muted"></div>
           <div class="err" id="e_price"></div>
 
+          <!-- توضیحات -->
           <label style="margin-top: 12px">توضیحات</label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
 
@@ -266,7 +256,7 @@
       </div>
     </div>
 
-    <!-- ---------------- DIALOG ---------------- -->
+    <!-- Dialog -->
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
@@ -292,10 +282,9 @@
       const tg = window.Telegram.WebApp;
       tg.expand();
       tg.ready();
-
       const $ = (s) => document.querySelector(s);
 
-      /* ---------------- CATEGORY ---------------- */
+      /* CATEGORY */
       let category = "فروش کارکرده";
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
@@ -307,14 +296,13 @@
         };
       });
 
-      /* ---------------- PRICE LOGIC ---------------- */
+      /* تبدیل ورودی میلیون → تومان خوانا */
+      function formatFromMillion(input) {
+        if (!input) return "";
+        let val = parseFloat(input);
+        if (isNaN(val) || val <= 0) return "";
 
-      function formatPriceMillionInput(value) {
-        if (!value) return "";
-        let n = parseInt(value);
-        if (isNaN(n) || n <= 0) return "";
-
-        let toman = n * 1_000_000;
+        let toman = val * 1_000_000;
         let parts = [];
 
         if (toman >= 1_000_000_000) {
@@ -322,29 +310,81 @@
           parts.push(b + " میلیارد");
           toman %= 1_000_000_000;
         }
-
         if (toman >= 1_000_000) {
           let m = Math.floor(toman / 1_000_000);
           parts.push(m + " میلیون");
           toman %= 1_000_000;
         }
-
         if (toman >= 1_000) {
           let k = Math.floor(toman / 1_000);
           parts.push(k + " هزار");
         }
-
         return parts.join(" و ") + " تومان";
       }
 
+      /* قیمت */
       $("#price").addEventListener("input", () => {
-        let v = $("#price").value.replace(/\D/g, "");
+        let v = $("#price").value;
+
+        // فقط اعداد و اعشار
+        v = v.replace(/[^0-9.]/g, "");
+
+        // بیش از یک نقطه مجاز نیست
+        if ((v.match(/\./g) || []).length > 1) {
+          v = v.substring(0, v.lastIndexOf("."));
+        }
+
         $("#price").value = v;
-        $("#price_hint").textContent = formatPriceMillionInput(v);
+        $("#price_hint").textContent = formatFromMillion(v);
       });
 
-      /* ---------------- SUBMIT ---------------- */
+      /* Validation */
+      function setErr(id, msg) {
+        $("#e_" + id).textContent = msg;
+      }
 
+      function containsPersianDigits(s) {
+        return /[\u06F0-\u06F9]/.test(s);
+      }
+
+      function validate(p) {
+        let ok = true;
+
+        // نام خودرو فارسی/انگلیسی/عدد فارسی و لاتین مجاز
+        if (!/^[آ-یA-Za-z0-9\u06F0-\u06F9\s]{2,40}$/.test(p.car)) {
+          setErr("car", "نام خوردو معتبر نیست.");
+          ok = false;
+        }
+
+        if (!/^\d{4}$/.test(p.year)) {
+          setErr("year", "سال ساخت ۴ رقم.");
+          ok = false;
+        }
+
+        if (!/^[آ-ی\s]{1,12}$/.test(p.color)) {
+          setErr("color", "رنگ فقط فارسی باشد.");
+          ok = false;
+        }
+
+        if (!/^\d{1,6}$/.test(p.km)) {
+          setErr("km", "کارکرد صحیح نیست.");
+          ok = false;
+        }
+
+        if (p.insurance && !/^\d{1,2}$/.test(p.insurance)) {
+          setErr("ins", "بازه ۰–۹۹ ماه.");
+          ok = false;
+        }
+
+        if (!p.price || parseFloat(p.price) <= 0) {
+          setErr("price", "قیمت لازم است.");
+          ok = false;
+        }
+
+        return ok;
+      }
+
+      /* Submit */
       $("#submit").onclick = () => {
         let p = {
           category,
@@ -354,20 +394,11 @@
           km: $("#km").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(),
+          price: $("#price").value.trim(), // میلیون
           desc: $("#desc").value.trim(),
         };
 
-        // اعتبارسنجی
-        if (!p.car) return ($("#e_car").textContent = "نام خودرو لازم است.");
-        if (!/^\d{4}$/.test(p.year))
-          return ($("#e_year").textContent = "سال ساخت ۴ رقم لاتین.");
-        if (!/^[آ-ی\s]{1,12}$/.test(p.color))
-          return ($("#e_color").textContent = "رنگ فارسی باشد.");
-        if (!/^\d{1,6}$/.test(p.km))
-          return ($("#e_km").textContent = "کارکرد نامعتبر.");
-        if (!p.price || parseInt(p.price) <= 0)
-          return ($("#e_price").textContent = "قیمت لازم است.");
+        if (!validate(p)) return;
 
         $("#preview").textContent = `
 دسته: ${p.category}
@@ -375,7 +406,7 @@
 سال: ${p.year}
 رنگ: ${p.color}
 کارکرد: ${p.km}
-قیمت: ${formatPriceMillionInput(p.price)}
+قیمت: ${formatFromMillion(p.price)}
 ${p.desc ? "توضیحات:\n" + p.desc : ""}
       `;
 
@@ -387,15 +418,17 @@ ${p.desc ? "توضیحات:\n" + p.desc : ""}
       $("#confirm").onclick = () => {
         tg.sendData(
           JSON.stringify({
-            category,
-            car: $("#car").value.trim(),
-            year: $("#year").value.trim(),
-            color: $("#color").value.trim(),
-            km: $("#km").value.trim(),
-            insurance: $("#insurance").value.trim(),
-            gear: $("#gear").value,
-            million_price: $("#price").value.trim(), // ← ارسال قیمت بر اساس میلیون
-            desc: $("#desc").value.trim(),
+            ...{
+              category,
+              car: $("#car").value.trim(),
+              year: $("#year").value.trim(),
+              color: $("#color").value.trim(),
+              km: $("#km").value.trim(),
+              insurance: $("#insurance").value.trim(),
+              gear: $("#gear").value,
+              price: $("#price").value.trim(), // میلیون
+              desc: $("#desc").value.trim(),
+            },
           })
         );
         tg.close();

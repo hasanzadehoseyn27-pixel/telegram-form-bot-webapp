@@ -14,19 +14,17 @@ from ..storage import (
 from .state import (
     MAX_PHOTOS, PENDING, PHOTO_WAIT,
 )
-from .membership import _user_is_member, build_join_kb      # ← اصلاح import
+from .membership import _user_is_member, build_join_kb
 from .common import (
     contains_persian_digits,
     price_words,
-    _price_million_to_toman_str,
     to_jalali,
 )
 
 router = Router()
 
-# --------------------------------------------------------------------------- #
-#                         کپشن‌ساز‌ها (share‑able)                           #
-# --------------------------------------------------------------------------- #
+
+# ------------------------ کپشن اصلی ------------------------
 
 def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show_desc: bool) -> str:
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
@@ -41,14 +39,20 @@ def build_caption(form: dict, number: int, jdate: str, *, show_price: bool, show
         f"🛡️ <b>مهلت بیمه (ماه):</b> {html.quote(ins_text)}",
         f"⚙️ <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
     ]
+
     if show_price and form.get("price_words"):
         parts.append(f"💵 <b>قیمت:</b> {html.quote(form['price_words'])}")
-    if show_desc and (form.get("desc") or "").strip():
+
+    if show_desc and form.get("desc"):
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
-    parts.append(f"☎️ <b>تماس:</b>\nکیوان  —  {lrm_number}")
+
+    parts.append(f"☎️ <b>تماس:</b>\nکیوان — {lrm_number}")
     parts.append(f"\n🗓️ <i>{jdate}</i>")
     return "\n".join(parts)
 
+
+
+# ------------------------ کپشن مخصوص ادمین ------------------------
 
 def admin_caption(
     form: dict,
@@ -59,111 +63,85 @@ def admin_caption(
     username: str | None = None,
     include_contact: bool = False,
 ) -> str:
+
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
-    lines: list[str] = []
+
+    lines = []
 
     if include_contact:
-        lines.append(f"📞 {html.quote(phone or '—')}")
+        lines.append(f"📞 {phone or '—'}")
         uname = (username or "").lstrip("@")
-        lines.append(f"👤 @{html.quote(uname)}" if uname else "👤 بدون نام کاربری")
+        lines.append(f"👤 @{uname}" if uname else "👤 بدون نام کاربری")
         lines.append("")
 
-    lines.append("🧪 <b>موارد نیازمند ویرایش/تایید:</b>")
-    lines.append(f"💵 <b>قیمت پیشنهادی:</b> {html.quote(form.get('price_words') or '—')}")
-    lines.append(f"📝 <b>توضیحات پیشنهادی:</b>\n{html.quote(form.get('desc') or '—')}")
+    lines.append("🧪 <b>موارد نیازمند بررسی:</b>")
+    lines.append(f"💵 قیمت: {form.get('price_words') or '—'}")
+    lines.append(f"📝 توضیحات:\n{form.get('desc') or '—'}")
     lines.append("—" * 10)
+
     lines.append("📋 <b>خلاصه آگهی</b>")
-    lines.append(f"دسته: {html.quote(form['category'])}")
-    lines.append(f"نام خودرو: {html.quote(form['car'])}")
-    lines.append(f"سال/رنگ/کارکرد: {html.quote(form['year'])} / {html.quote(form['color'])} / {html.quote(form['km'])}km")
-    lines.append(f"بیمه/گیربکس: {html.quote(ins_text)} / {html.quote(form.get('gear') or '—')}")
-    lines.append(f"\n🗓️ <i>{jdate}</i>  •  ⏱️ <b>#{number}</b>")
+    lines.append(f"نام خودرو: {form['car']}")
+    lines.append(f"سال/رنگ/کارکرد: {form['year']} / {form['color']} / {form['km']}km")
+    lines.append(f"بیمه/گیربکس: {ins_text} / {form.get('gear') or '—'}")
+
+    lines.append(f"\n🗓️ <i>{jdate}</i> • ⏱ # {number}")
+
     return "\n".join(lines)
 
-# --------------------------------------------------------------------------- #
-#                        اعتبارسنجی و نرمال‌سازی فرم                         #
-# --------------------------------------------------------------------------- #
-
-def _parse_admin_price(text: str) -> tuple[bool, int]:
-    s = (text or "").strip().replace(",", ".").replace("\u066B", ".")
-    if contains_persian_digits(s):
-        return False, 0
-    if re.fullmatch(r"\d{1,5}(\.\d)?", s):
-        return True, int(round(float(s) * 1_000_000))
-    if re.fullmatch(r"\d{1,12}", s):
-        n = int(s)
-        if 1 <= n <= 100_000_000_000:
-            return True, n
-    return False, 0
 
 
-def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None]:
-    cat = (payload.get("category") or "").strip()
-    car = (payload.get("car") or "").strip()
-    year = (payload.get("year") or "").strip()
-    color = (payload.get("color") or "").strip()
-    km = (payload.get("km") or "").strip()
-    price_raw = (payload.get("price") or "").strip()
-    ins = (payload.get("insurance") or "").strip()
-    gear = (payload.get("gear") or "").strip()
-    desc = (payload.get("desc") or "").strip()
-    phone = (payload.get("phone") or "").strip()
+# ------------------------ اعتبارسنجی ورودی ------------------------
 
-    # --- جلوگیری از ارقام فارسی ---
+def validate_and_normalize(payload: dict):
+    cat = payload.get("category", "").strip()
+    car = payload.get("car", "").strip()
+    year = payload.get("year", "").strip()
+    color = payload.get("color", "").strip()
+    km = payload.get("km", "").strip()
+    ins = payload.get("insurance", "").strip()
+    gear = payload.get("gear", "").strip()
+    desc = payload.get("desc", "").strip()
+    phone = payload.get("phone", "").strip()
+    million_price = str(payload.get("million_price", "")).strip()
+
+    # جلوگیری از ارقام فارسی
     if (
         contains_persian_digits(car)
         or contains_persian_digits(year)
         or contains_persian_digits(km)
         or contains_persian_digits(ins)
         or contains_persian_digits(phone)
+        or contains_persian_digits(million_price)
     ):
-        return False, "لطفاً اعداد را فقط با رقم‌های لاتین (0-9) وارد کنید.", None
+        return False, "لطفاً فقط از اعداد لاتین استفاده کنید.", None
 
-
-    # -----------------------
-    # نام خودرو: فارسی + انگلیسی + عدد + فاصله (حداکثر ۴۰ کاراکتر)
-    # -----------------------
+    # نام خودرو فارسی یا انگلیسی یا عدد
     if not re.fullmatch(r"[آ-یA-Za-z0-9\s]{2,40}", car):
-        return False, "نام خودرو باید فارسی یا انگلیسی و بین 2 تا 40 کاراکتر باشد.", None
+        return False, "نام خودرو نامعتبر است (فقط فارسی/انگلیسی/عدد).", None
 
-    # جلوگیری از رشته‌های غیرطبیعی (مثلاً 999999999)
-    if re.search(r"\d{5,}", car):
-        return False, "عدد بیش از ۴ رقم پشت‌سرهم در نام خودرو مجاز نیست.", None
+    if not re.fullmatch(r"\d{4}", year):
+        return False, "سال ساخت باید ۴ رقم باشد.", None
 
+    if not re.fullmatch(r"[آ-ی\s]{1,12}", color):
+        return False, "رنگ باید فارسی باشد.", None
 
-    # سایر قوانین مثل قبل
-    if not re.fullmatch(r"[0-9]{4}", year):
-        return False, "سال ساخت باید ۴ رقم لاتین باشد.", None
+    if not re.fullmatch(r"\d{1,6}", km):
+        return False, "کارکرد نامعتبر است.", None
 
-    if not re.fullmatch(r"[آ-ی\s]{1,6}", color):
-        return False, "رنگ باید حروف فارسی (حداکثر ۶) باشد.", None
-
-    if not re.fullmatch(r"[0-9]{1,6}", km):
-        return False, "کارکرد باید عددی لاتین حداکثر ۶ رقمی باشد.", None
-
-    if ins and not re.fullmatch(r"[0-9]{1,2}", ins):
-        return False, "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.", None
+    if ins and not re.fullmatch(r"\d{1,2}", ins):
+        return False, "مهلت بیمه 0 تا 99 ماه.", None
 
     if not re.fullmatch(r"09\d{9}", phone):
-        return False, "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.", None
+        return False, "شماره تماس صحیح نیست.", None
 
-    ok_num, toman = _price_million_to_toman_str(price_raw)
-    if not ok_num:
-        return False, "قیمت را با ارقام لاتین و به صورت «میلیون تومان» وارد کنید (مثلاً 50.5).", None
+    # ------------------------ قیمت میلیون + اعشار ------------------------
 
-    # قیمت
-    price_num = None
-    price_words_str = None
+    if not re.fullmatch(r"\d+(\.\d{1,3})?", million_price):
+        return False, "فرمت قیمت صحیح نیست (مثال: 120.5 یا 1500.7).", None
 
-    if cat == "فروش همکاری":
-        if toman > 0:
-            price_num = toman
-            price_words_str = price_words(toman)
-    else:
-        if toman < 1:
-            return False, "قیمت لازم است (به میلیون تومان).", None
-        price_num = toman
-        price_words_str = price_words(toman)
+    million_val = float(million_price)
+    toman = int(million_val * 1_000_000)   # تبدیل میلیون → تومان
+    price_text = price_words(toman)
 
     form = {
         "category": cat,
@@ -174,169 +152,214 @@ def validate_and_normalize(payload: dict) -> tuple[bool, str | None, dict | None
         "insurance": ins,
         "gear": gear,
         "desc": desc,
-        "price_num": price_num,
-        "price_words": price_words_str,
         "phone": phone,
         "username": "",
         "photos": [],
+        "price_num": toman,
+        "price_words": price_text,
     }
 
     return True, None, form
 
 
-# --------------------------------------------------------------------------- #
-#               دریافت فرم وب‌اپ و عکس‌ها + انتشار اولیه                      #
-# --------------------------------------------------------------------------- #
+
+# ------------------------ دریافت فرم WebApp ------------------------
 
 @router.message(F.web_app_data)
 async def on_webapp_data(message: types.Message):
-    # ---------- بررسی عضویت ----------
+
     if not await _user_is_member(message.bot, message.from_user.id):
         await message.answer(
-            "⛔ ابتدا در کانال‌های مشخص‌شده عضو شوید، سپس از دکمه «🔁 بررسی عضویت» استفاده کنید.",
-            reply_markup=await build_join_kb(message.bot),   # ← جایگزین _join_kb()
+            "⛔ ابتدا در کانال‌های موردنیاز عضو شوید.",
+            reply_markup=await build_join_kb(message.bot),
         )
         return
 
-    # ---------- پردازش داده ----------
     try:
         data = json.loads(message.web_app_data.data or "{}")
-    except Exception:
+    except:
         data = {}
 
     ok, err, form = validate_and_normalize(data)
     if not ok:
-        await message.answer(err or "داده نامعتبر است.")
-        return
+        return await message.answer(err or "اطلاعات نامعتبر است.")
 
     form["username"] = message.from_user.username or ""
 
     token = uuid4().hex
-    PENDING[token] = {"form": form, "user_id": message.from_user.id, "admin_msgs": []}
+    PENDING[token] = {
+        "form": form,
+        "user_id": message.from_user.id,
+        "admin_msgs": [],
+    }
+
     PHOTO_WAIT[message.from_user.id] = {"token": token, "remain": MAX_PHOTOS}
 
     await message.answer(
-        "فرم شما ذخیره شد ✅\n"
-        "اکنون تا ۵ عکس ارسال کنید. هر زمان آماده بودید، «📣 انتشار در گروه» را بزنید.",
+        "فرم ذخیره شد. اکنون تا ۵ عکس ارسال کنید.",
         reply_markup=user_finish_kb(token),
     )
+
+
+
+# ------------------------ دریافت عکس‌ها ------------------------
 
 @router.message(F.photo)
 async def on_photo(message: types.Message):
     sess = PHOTO_WAIT.get(message.from_user.id)
     if not sess:
         return
-    if "remain" not in sess or not isinstance(sess["remain"], int) or sess["remain"] < 0:
-        sess["remain"] = MAX_PHOTOS
 
     if sess["remain"] <= 0:
-        await message.reply(
-            "حداکثر ۵ عکس مجاز است. سپس «📣 انتشار در گروه» را بزنید.",
+        await message.answer(
+            "حداکثر ۵ عکس. برای انتشار آماده‌اید.",
             reply_markup=user_finish_kb(sess["token"]),
         )
         return
 
     file_id = message.photo[-1].file_id
     token = sess["token"]
+
     PENDING[token]["form"]["photos"].append(file_id)
+
     sess["remain"] -= 1
-    left = max(sess["remain"], 0)
+    left = sess["remain"]
 
     await message.reply(
         f"عکس ثبت شد. باقی‌مانده: {left}",
         reply_markup=user_finish_kb(token),
     )
 
-# ---------------------- انتشار اولیه و ارسال برای ادمین -------------------- #
+
+
+# ------------------------ انتشار پست ------------------------
 
 async def publish_to_destination(bot: Bot, form: dict, *, show_price: bool, show_desc: bool):
+
     number, iso = next_daily_number()
     j = to_jalali(iso)
-    caption = build_caption(form, number, j, show_price=show_price, show_desc=show_desc)
-    photos = form.get("photos") or []
-    dest_id = SETTINGS.TARGET_GROUP_ID
+    caption = build_caption(
+        form, number, j,
+        show_price=show_price,
+        show_desc=show_desc
+    )
+
+    dest = SETTINGS.TARGET_GROUP_ID
+    photos = form["photos"]
 
     if photos:
         mg = MediaGroupBuilder()
         mg.add_photo(media=photos[0], caption=caption, parse_mode="HTML")
-        for fid in photos[1:MAX_PHOTOS]:
-            mg.add_photo(media=fid)
-        msgs = await bot.send_media_group(dest_id, media=mg.build())
-        first = msgs[0]
-        return {"chat_id": first.chat.id, "msg_id": first.message_id, "has_photos": True, "number": number, "jdate": j}
-    else:
-        msg = await bot.send_message(dest_id, caption, parse_mode="HTML")
-        return {"chat_id": msg.chat.id, "msg_id": msg.message_id, "has_photos": False, "number": number, "jdate": j}
+        for p in photos[1:MAX_PHOTOS]:
+            mg.add_photo(media=p)
 
-async def send_review_to_admins(bot: Bot, form: dict, token: str, photos: list[str], grp: dict):
-    recipients = list_admins()
-    if not recipients:
-        return 0
-    ok = 0
-    for admin_id in recipients:
+        msgs = await bot.send_media_group(dest, mg.build())
+        first = msgs[0]
+
+        return {
+            "chat_id": first.chat.id,
+            "msg_id": first.message_id,
+            "has_photos": True,
+            "number": number,
+            "jdate": j
+        }
+
+    else:
+        msg = await bot.send_message(dest, caption, parse_mode="HTML")
+        return {
+            "chat_id": msg.chat.id,
+            "msg_id": msg.message_id,
+            "has_photos": False,
+            "number": number,
+            "jdate": j
+        }
+
+
+
+# ------------------------ ارسال برای ادمین‌ها ------------------------
+
+async def send_review_to_admins(bot, form, token, photos, grp):
+    count = 0
+    admins = list_admins()
+
+    for admin_id in admins:
         try:
             include_contact = is_owner(admin_id)
+
             cap = admin_caption(
                 form,
-                grp.get("number"),
-                grp.get("jdate"),
-                phone=form.get("phone"),
-                username=form.get("username"),
+                grp["number"],
+                grp["jdate"],
+                phone=form["phone"],
+                username=form["username"],
                 include_contact=include_contact,
             )
+
+            # ارسال تصاویر
             if photos:
                 mg = MediaGroupBuilder()
                 mg.add_photo(media=photos[0], caption=cap, parse_mode="HTML")
-                for fid in photos[1:MAX_PHOTOS]:
-                    mg.add_photo(media=fid)
-                await bot.send_media_group(admin_id, media=mg.build())
+                for p in photos[1:MAX_PHOTOS]:
+                    mg.add_photo(media=p)
+                await bot.send_media_group(admin_id, mg.build())
             else:
                 await bot.send_message(admin_id, cap, parse_mode="HTML")
 
-            panel_msg = await bot.send_message(
+            # پنل اکشن
+            panel = await bot.send_message(
                 admin_id,
-                "ویرایش/اعمال:\n"
-                f"• قیمت فعلی: {html.quote(form.get('price_words') or '—')}\n"
-                f"• توضیحات فعلی: {(html.quote(form.get('desc') or '—'))[:400]}\n\n"
-                "یک مورد را انتخاب کنید:",
-                parse_mode="HTML",
+                f"📝 ویرایش/اعمال:\n"
+                f"• قیمت فعلی: {form['price_words']}\n"
+                f"• توضیحات فعلی: {(form['desc'] or '—')[:400]}\n",
                 reply_markup=admin_review_kb(token),
+                parse_mode="HTML",
             )
-            PENDING[token]["admin_msgs"].append((panel_msg.chat.id, panel_msg.message_id))
-            ok += 1
-        except Exception:
+
+            PENDING[token]["admin_msgs"].append((panel.chat.id, panel.message_id))
+            count += 1
+
+        except:
             pass
-    return ok
+
+    return count
+
+
+
+# ------------------------ پایان کاربر ------------------------
 
 @router.callback_query(F.data.startswith("finish:"))
 async def cb_finish(call: types.CallbackQuery):
     token = call.data.split(":", 1)[1]
+
     data = PENDING.get(token)
     if not data or data["user_id"] != call.from_user.id:
-        await call.answer("جلسه یافت نشد.", show_alert=True)
-        return
+        return await call.answer("جلسه یافت نشد.", show_alert=True)
 
     if not SETTINGS.TARGET_GROUP_ID:
-        await call.answer("کانال مقصد تنظیم نشده است.", show_alert=True)
-        return
+        return await call.answer("کانال مقصد در تنظیمات تعریف نشده.", show_alert=True)
 
     form = data["form"]
 
-    # انتشار اولیه (فقط کانال .env)
-    show_price = form["category"] != "فروش همکاری"
-    grp = await publish_to_destination(call.bot, form, show_price=show_price, show_desc=False)
+    # انتشار اولیه
+    grp = await publish_to_destination(
+        call.bot,
+        form,
+        show_price=True,
+        show_desc=False
+    )
 
-    # نگهداری
     PENDING[token]["grp"] = grp
-    PENDING[token]["needs"] = {"price": (form["category"] == "فروش همکاری"), "desc": True}
+    PENDING[token]["needs"] = {"price": False, "desc": True}
 
     # ارسال برای ادمین‌ها
-    await send_review_to_admins(call.bot, form, token, form.get("photos") or [], grp)
+    photos = form["photos"]
+    await send_review_to_admins(call.bot, form, token, photos, grp)
 
     PHOTO_WAIT.pop(call.from_user.id, None)
 
-    await call.answer()
     try:
-        await call.message.edit_text("ثبت شد ✅ و برای بررسی به ادمین‌ها ارسال گردید.")
-    except Exception:
+        await call.message.edit_text("ثبت شد و برای بررسی ادمین ارسال شد.")
+    except:
         pass
+
+    await call.answer()
