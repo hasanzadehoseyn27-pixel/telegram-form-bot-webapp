@@ -255,9 +255,6 @@
                 inputmode="tel"
                 placeholder="مثلاً: 09123456789"
               />
-              <div class="muted">
-                فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)
-              </div>
               <div class="err" id="e_phone"></div>
             </div>
           </div>
@@ -323,7 +320,7 @@
         };
       });
 
-      /* کمک‌تابع خطا */
+      /* helpers خطا */
       function setErr(id, msg) {
         $("#e_" + id).textContent = msg || "";
       }
@@ -334,20 +331,13 @@
         );
       }
 
-      function containsPersianDigits(s) {
-        // ارقام فارسی + عربی
-        return /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
-      }
-
-      /* تبدیل ورودی میلیون → تومان خوانا */
+      /* تبدیل میلیون → تومان خوانا */
       function formatFromMillion(input) {
         if (!input) return "";
         let val = parseFloat(input.replace(",", "."));
         if (isNaN(val) || val <= 0) return "";
 
-        // فقط یک رقم اعشار در نظر بگیر (مثل 120.5)
-        val = Math.round(val * 10) / 10;
-
+        val = Math.round(val * 10) / 10; // حداکثر ۱ رقم اعشار
         let toman = Math.round(val * 1_000_000);
         let parts = [];
 
@@ -371,12 +361,10 @@
       function updatePriceHint() {
         const v = $("#price").value;
         const words = formatFromMillion(v);
-        const examples =
-          "مثال‌ها: 120.5 → 120 میلیون و 500 هزار • 1500.7 → 1 میلیارد و 500 میلیون و 700 هزار • 2500 → 2 میلیارد و 500 میلیون • 80.2 → 80 میلیون و 200 هزار";
-        $("#price_hint").textContent = (words ? words + " — " : "") + examples;
+        $("#price_hint").textContent = words;
       }
 
-      /* قیمت: فقط رقم و یک نقطه، اعشار ۱ رقمی */
+      /* ورودی قیمت */
       $("#price").addEventListener("input", () => {
         let v = $("#price").value.replace(/[^0-9.,]/g, "");
         v = v.replace(",", ".");
@@ -393,12 +381,12 @@
         updatePriceHint();
       });
 
-      /* Validation */
+      /* اعتبارسنجی سمت کلاینت */
       function validate(p) {
         clearErrors();
         let ok = true;
 
-        // نام خودرو: فارسی + انگلیسی + عدد (لاتین و فارسی) + فاصله
+        // نام خودرو: فارسی + انگلیسی + عدد فارسی و لاتین + فاصله
         if (
           !/^[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}$/.test(p.car) ||
           /[0-9\u06F0-\u06F9\u0660-\u0669]{5,}/.test(p.car)
@@ -410,7 +398,7 @@
           ok = false;
         }
 
-        if (containsPersianDigits(p.year) || !/^[0-9]{4}$/.test(p.year)) {
+        if (!/^[0-9]{4}$/.test(p.year)) {
           setErr("year", "سال ساخت باید ۴ رقم لاتین باشد.");
           ok = false;
         }
@@ -420,25 +408,18 @@
           ok = false;
         }
 
-        if (containsPersianDigits(p.km) || !/^[0-9]{1,6}$/.test(p.km)) {
+        if (!/^[0-9]{1,6}$/.test(p.km)) {
           setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
           ok = false;
         }
 
-        if (
-          p.insurance &&
-          (containsPersianDigits(p.insurance) ||
-            !/^[0-9]{1,2}$/.test(p.insurance))
-        ) {
+        if (p.insurance && !/^[0-9]{1,2}$/.test(p.insurance)) {
           setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
           ok = false;
         }
 
-        if (
-          containsPersianDigits(p.phone) ||
-          !/^09\d{9}$/.test(p.phone || "")
-        ) {
-          setErr("phone", "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.");
+        if (!/^09\d{9}$/.test(p.phone || "")) {
+          setErr("phone", "شماره تماس باید با 09 شروع شده و ۱۱ رقم باشد.");
           ok = false;
         }
 
@@ -495,7 +476,8 @@ ${data.desc ? "توضیحات:\n" + data.desc : ""}`.trim();
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
           phone: $("#phone").value.trim(),
-          price: $("#price").value.trim(), // همان فیلدی که backend می‌خواند
+          // برای بک‌اند: million_price
+          million_price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
         };
 
@@ -503,7 +485,6 @@ ${data.desc ? "توضیحات:\n" + data.desc : ""}`.trim();
         tg.close();
       };
 
-      // هینت اولیه‌ی قیمت
       updatePriceHint();
     </script>
   </body>
