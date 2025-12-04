@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+from aiogram import Bot
 
 DATA = Path("/tmp/bot_data")
 REQUIRED_FILE = DATA / "required_channels.json"
@@ -15,6 +16,7 @@ def _load() -> None:
             raw = json.loads(REQUIRED_FILE.read_text(encoding="utf-8")) or []
         except Exception:
             raw = []
+
         _REQ = [
             {
                 "id": int(it.get("id")),
@@ -33,22 +35,40 @@ def _save() -> None:
         pass
 
 
-def bootstrap_required_channels(
-    default_id: int | None, *, default_title: str = "", default_username: str = ""
-) -> None:
-    _load()
-    if not default_id:
+async def sync_username_and_title(bot: Bot) -> None:
+    """
+    هر کانالی که username یا title ندارد را از Telegram API می‌گیرد
+    و داخل فایل ذخیره می‌کند.
+    """
+    changed = False
+    for ch in _REQ:
+        cid = int(ch["id"])
+
+        # اگر username یا title خالی است → از API بگیر
+        if not ch.get("username") or not ch.get("title"):
+            try:
+                info = await bot.get_chat(cid)
+                api_username = getattr(info, "username", "") or ""
+                api_title = getattr(info, "title", "") or getattr(info, "full_name", "")
+
+                if api_username and not ch.get("username"):
+                    ch["username"] = api_username
+                    changed = True
+
+                if api_title and not ch.get("title"):
+                    ch["title"] = api_title
+                    changed = True
+
+            except:
+                pass
+
+    if changed:
         _save()
-        return
-    cid = int(default_id)
-    if not any(int(ch["id"]) == cid for ch in _REQ):
-        _REQ.append(
-            {"id": cid, "title": str(default_title), "username": str(default_username).lstrip("@")}
-        )
-    _save()
 
 
-# -- API ---------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
+# API اصلی
+# --------------------------------------------------------------------------- #
 
 def list_required_channels() -> list[dict]:
     _load()
@@ -63,6 +83,7 @@ def get_required_channel_ids() -> list[int]:
 def add_required_channel(chat_id: int, *, title: str = "", username: str = "") -> bool:
     _load()
     cid = int(chat_id)
+
     for ch in _REQ:
         if int(ch["id"]) == cid:
             changed = False
@@ -75,6 +96,7 @@ def add_required_channel(chat_id: int, *, title: str = "", username: str = "") -
             if changed:
                 _save()
             return False
+
     _REQ.append({"id": cid, "title": title, "username": username.lstrip("@")})
     _save()
     return True
