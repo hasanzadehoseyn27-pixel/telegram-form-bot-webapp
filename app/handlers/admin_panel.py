@@ -5,11 +5,11 @@ from aiogram import Router, types, F
 
 from ..config import SETTINGS
 from ..keyboards import (
-    start_keyboard,
     admin_root_kb,
     admin_admins_kb,
     admin_allowed_kb,
     admin_my_channels_kb,
+    start_keyboard,           # ← اضافه شد برای برگشت به منوی اصلی
 )
 from ..storage import (
     list_admins, add_admin, remove_admin, is_admin, is_owner,
@@ -55,6 +55,21 @@ async def admin_panel_root_msg(message: types.Message):
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
 
+# 🔙 این دکمه را در *منوی پنل مدیریتی* می‌زنیم تا برگردیم به منوی اصلی استارت
+@router.message(F.text == "🔙 بازگشت")
+async def admin_back_to_main_menu(message: types.Message):
+    if not is_admin(message.from_user.id):
+        await message.answer("دسترسی ندارید.")
+        return
+    if not SETTINGS.WEBAPP_URL:
+        await message.answer("WEBAPP_URL در .env تنظیم نشده است.")
+        return
+    kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
+    await message.answer("بازگشت به منوی اصلی ربات:", reply_markup=kb)
+
+
+# این دکمه در زیرمنوها است (ادمین‌ها، کانال‌های مجاز، کانال‌های من)
+# و فقط کاربر را به خودِ پنل مدیریتی برمی‌گرداند
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -62,19 +77,6 @@ async def admin_back_to_panel(message: types.Message):
         return
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
-
-
-@router.message(F.text == "🔙 بازگشت")
-async def admin_back_to_main_menu(message: types.Message):
-    """
-    بازگشت از ریشهٔ پنل مدیریتی به منوی اصلی استارت
-    (جایی که دکمهٔ «⚙️ پنل مدیریتی» و «باز کردن فرم آگهی» قرار دارد).
-    """
-    if not is_admin(message.from_user.id):
-        await message.answer("دسترسی ندارید.")
-        return
-    kb = start_keyboard(SETTINGS.WEBAPP_URL, True)
-    await message.answer("بازگشت به منوی اصلی.", reply_markup=kb)
 
 # --------------------------------------------------------------------------- #
 #                           بخش «ادمین‌ها»                                   #
