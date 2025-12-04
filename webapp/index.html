@@ -200,8 +200,6 @@
         </div>
 
         <div class="section">
-          <!-- ---------------- نام خودرو + سال ---------------- -->
-
           <div class="grid">
             <div>
               <label>نام خودرو *</label>
@@ -216,8 +214,6 @@
             </div>
           </div>
 
-          <!-- ---------------- رنگ + کارکرد ---------------- -->
-
           <div class="grid">
             <div>
               <label>رنگ *</label>
@@ -231,8 +227,6 @@
               <div class="err" id="e_km"></div>
             </div>
           </div>
-
-          <!-- ---------------- بیمه + گیربکس ---------------- -->
 
           <div class="grid">
             <div>
@@ -251,18 +245,16 @@
             </div>
           </div>
 
-          <!-- ---------------- قیمت ---------------- -->
+          <!-- --------------- قیمت بر اساس میلیون تومان --------------- -->
 
-          <label>قیمت (تومان) *</label>
+          <label>قیمت (بر اساس میلیون تومان) *</label>
           <input
             id="price"
             inputmode="numeric"
-            placeholder="مثلاً: 1200100000"
+            placeholder="مثلاً: 80 یا 1200"
           />
           <div id="price_hint" class="muted"></div>
           <div class="err" id="e_price"></div>
-
-          <!-- ---------------- توضیحات ---------------- -->
 
           <label style="margin-top: 12px">توضیحات</label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
@@ -274,7 +266,7 @@
       </div>
     </div>
 
-    <!-- ------------------ DIALOG ------------------ -->
+    <!-- ---------------- DIALOG ---------------- -->
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
@@ -303,10 +295,8 @@
 
       const $ = (s) => document.querySelector(s);
 
-      /* ---------------------- CATEGORY ---------------------- */
-
+      /* ---------------- CATEGORY ---------------- */
       let category = "فروش کارکرده";
-
       document.querySelectorAll(".tab").forEach((t) => {
         t.onclick = () => {
           document
@@ -317,31 +307,30 @@
         };
       });
 
-      /* ---------------------- PRICE LOGIC (RAW TOMAN INPUT) ---------------------- */
+      /* ---------------- PRICE LOGIC ---------------- */
 
-      function formatToman(t) {
-        if (!t) return "";
+      function formatPriceMillionInput(value) {
+        if (!value) return "";
+        let n = parseInt(value);
+        if (isNaN(n) || n <= 0) return "";
 
-        t = parseInt(t);
-
-        if (isNaN(t) || t <= 0) return "";
-
+        let toman = n * 1_000_000;
         let parts = [];
 
-        if (t >= 1_000_000_000) {
-          let b = Math.floor(t / 1_000_000_000);
+        if (toman >= 1_000_000_000) {
+          let b = Math.floor(toman / 1_000_000_000);
           parts.push(b + " میلیارد");
-          t %= 1_000_000_000;
+          toman %= 1_000_000_000;
         }
 
-        if (t >= 1_000_000) {
-          let m = Math.floor(t / 1_000_000);
+        if (toman >= 1_000_000) {
+          let m = Math.floor(toman / 1_000_000);
           parts.push(m + " میلیون");
-          t %= 1_000_000;
+          toman %= 1_000_000;
         }
 
-        if (t >= 1_000) {
-          let k = Math.floor(t / 1_000);
+        if (toman >= 1_000) {
+          let k = Math.floor(toman / 1_000);
           parts.push(k + " هزار");
         }
 
@@ -349,59 +338,12 @@
       }
 
       $("#price").addEventListener("input", () => {
-        let v = $("#price").value.replace(/\D/g, ""); // فقط عدد
-
+        let v = $("#price").value.replace(/\D/g, "");
         $("#price").value = v;
-
-        $("#price_hint").textContent = formatToman(v);
+        $("#price_hint").textContent = formatPriceMillionInput(v);
       });
 
-      /* ---------------------- VALIDATE ---------------------- */
-
-      function setErr(id, msg) {
-        $("#e_" + id).textContent = msg;
-      }
-
-      function validate(p) {
-        let ok = true;
-
-        if (!p.car) {
-          setErr("car", "نام خودرو لازم است.");
-          ok = false;
-        }
-
-        if (!/^\d{4}$/.test(p.year)) {
-          setErr("year", "سال ساخت ۴ رقم لاتین.");
-          ok = false;
-        }
-
-        if (!/^[آ-ی\s]{1,10}$/.test(p.color)) {
-          setErr("color", "رنگ فقط فارسی باشد.");
-          ok = false;
-        }
-
-        if (!/^\d{1,6}$/.test(p.km)) {
-          setErr("km", "کارکرد صحیح نیست.");
-          ok = false;
-        }
-
-        if (p.insurance && !/^\d{1,2}$/.test(p.insurance)) {
-          setErr("ins", "بازه ۰–۹۹ ماه.");
-          ok = false;
-        }
-
-        if (
-          category !== "فروش همکاری" &&
-          (!p.price || parseInt(p.price) <= 0)
-        ) {
-          setErr("price", "قیمت لازم است.");
-          ok = false;
-        }
-
-        return ok;
-      }
-
-      /* ---------------------- PREVIEW & SEND ---------------------- */
+      /* ---------------- SUBMIT ---------------- */
 
       $("#submit").onclick = () => {
         let p = {
@@ -416,7 +358,16 @@
           desc: $("#desc").value.trim(),
         };
 
-        if (!validate(p)) return;
+        // اعتبارسنجی
+        if (!p.car) return ($("#e_car").textContent = "نام خودرو لازم است.");
+        if (!/^\d{4}$/.test(p.year))
+          return ($("#e_year").textContent = "سال ساخت ۴ رقم لاتین.");
+        if (!/^[آ-ی\s]{1,12}$/.test(p.color))
+          return ($("#e_color").textContent = "رنگ فارسی باشد.");
+        if (!/^\d{1,6}$/.test(p.km))
+          return ($("#e_km").textContent = "کارکرد نامعتبر.");
+        if (!p.price || parseInt(p.price) <= 0)
+          return ($("#e_price").textContent = "قیمت لازم است.");
 
         $("#preview").textContent = `
 دسته: ${p.category}
@@ -424,7 +375,7 @@
 سال: ${p.year}
 رنگ: ${p.color}
 کارکرد: ${p.km}
-قیمت: ${formatToman(p.price)}
+قیمت: ${formatPriceMillionInput(p.price)}
 ${p.desc ? "توضیحات:\n" + p.desc : ""}
       `;
 
@@ -443,11 +394,10 @@ ${p.desc ? "توضیحات:\n" + p.desc : ""}
             km: $("#km").value.trim(),
             insurance: $("#insurance").value.trim(),
             gear: $("#gear").value,
-            price: $("#price").value.trim(),
+            million_price: $("#price").value.trim(), // ← ارسال قیمت بر اساس میلیون
             desc: $("#desc").value.trim(),
           })
         );
-
         tg.close();
       };
     </script>
