@@ -205,6 +205,15 @@ async def list_my_channels_msg(message: types.Message):
         title = ch.get("title") or ""
         username = ch.get("username") or ""
 
+        # اگر username خالی بود، از Telegram دریافت کن
+        if not username:
+            try:
+                chat_info = await message.bot.get_chat(cid)
+                username = getattr(chat_info, "username", "") or ""
+            except:
+                username = ""
+
+        # ساخت متن خروجی
         text = f"- {cid} — {title}"
 
         if username:
@@ -216,6 +225,7 @@ async def list_my_channels_msg(message: types.Message):
         lines.append(text)
 
     await message.answer("\n".join(lines))
+
 
 
 @router.message(F.text == "➕ افزودن کانال من")
