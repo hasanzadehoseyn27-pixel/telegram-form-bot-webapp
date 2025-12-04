@@ -331,10 +331,26 @@
         );
       }
 
+      /* تبدیل ارقام فارسی/عربی به لاتین */
+      function faToEnDigits(str) {
+        if (!str) return "";
+        const fa = "۰۱۲۳۴۵۶۷۸۹";
+        const ar = "٠١٢٣٤٥٦٧٨٩";
+        let out = "";
+        for (let ch of String(str)) {
+          const iFa = fa.indexOf(ch);
+          const iAr = ar.indexOf(ch);
+          if (iFa > -1) out += String(iFa);
+          else if (iAr > -1) out += String(iAr);
+          else out += ch;
+        }
+        return out;
+      }
+
       /* تبدیل میلیون → تومان خوانا */
       function formatFromMillion(input) {
         if (!input) return "";
-        let val = parseFloat(input.replace(",", "."));
+        let val = parseFloat(faToEnDigits(String(input)).replace(",", "."));
         if (isNaN(val) || val <= 0) return "";
 
         val = Math.round(val * 10) / 10; // حداکثر ۱ رقم اعشار
@@ -361,12 +377,24 @@
       function updatePriceHint() {
         const v = $("#price").value;
         const words = formatFromMillion(v);
-        $("#price_hint").textContent = words;
+        if (!v || !words) {
+          // راهنمای پیش‌فرض وقتی خالی است
+          $("#price_hint").textContent =
+            "مثال: 80 = 80 میلیون تومان، 120.5 = 120 میلیون و 500 هزار تومان.";
+        } else {
+          $("#price_hint").textContent = words;
+        }
       }
 
       /* ورودی قیمت */
       $("#price").addEventListener("input", () => {
-        let v = $("#price").value.replace(/[^0-9.,]/g, "");
+        let v = $("#price").value;
+
+        // تبدیل ارقام فارسی به لاتین
+        v = faToEnDigits(v);
+
+        // فقط اعداد و , و .
+        v = v.replace(/[^0-9.,]/g, "");
         v = v.replace(",", ".");
         const parts = v.split(".");
         if (parts.length > 2) {
@@ -381,10 +409,32 @@
         updatePriceHint();
       });
 
+      /* فقط ارقام لاتین در شماره تماس هنگام تایپ */
+      $("#phone").addEventListener("input", () => {
+        let v = faToEnDigits($("#phone").value);
+        v = v.replace(/[^0-9]/g, "");
+        $("#phone").value = v;
+        setErr("phone", "");
+      });
+
       /* اعتبارسنجی سمت کلاینت */
       function validate(p) {
         clearErrors();
         let ok = true;
+
+        // نرمال‌سازی ارقام در فیلدهای عددی
+        p.year = faToEnDigits(p.year);
+        p.km = faToEnDigits(p.km);
+        p.insurance = faToEnDigits(p.insurance);
+        p.phone = faToEnDigits(p.phone);
+        p.price = faToEnDigits(p.price);
+
+        // بازنویسی در inputها (تا کاربر هم لاتین ببیند)
+        $("#year").value = p.year;
+        $("#km").value = p.km;
+        $("#insurance").value = p.insurance;
+        $("#phone").value = p.phone;
+        $("#price").value = p.price;
 
         // نام خودرو: فارسی + انگلیسی + عدد فارسی و لاتین + فاصله
         if (
@@ -418,8 +468,11 @@
           ok = false;
         }
 
-        if (!/^09\d{9}$/.test(p.phone || "")) {
-          setErr("phone", "شماره تماس باید با 09 شروع شده و ۱۱ رقم باشد.");
+        if (!/^09[0-9]{9}$/.test(p.phone || "")) {
+          setErr(
+            "phone",
+            "شماره تماس باید با 09 شروع شده و ۱۱ رقم لاتین باشد."
+          );
           ok = false;
         }
 
@@ -430,6 +483,9 @@
           );
           ok = false;
         }
+
+        // بروزرسانی راهنمای قیمت بعد از نرمال‌سازی
+        updatePriceHint();
 
         return ok;
       }

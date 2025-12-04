@@ -29,6 +29,25 @@ from .common import (
 router = Router()
 
 # --------------------------------------------------------------------------- #
+#                         توابع کمکی محلی                                     #
+# --------------------------------------------------------------------------- #
+
+
+def normalize_digits(s: str) -> str:
+    """
+    تبدیل ارقام فارسی/عربی به لاتین.
+    فقط روی خود ارقام اثر می‌گذارد و بقیه کاراکترها را دست نمی‌زند.
+    """
+    if not s:
+        return ""
+    persian = "۰۱۲۳۴۵۶۷۸۹"
+    arabic = "٠١٢٣٤٥٦٧٨٩"
+    trans_table = {ord(p): str(i) for i, p in enumerate(persian)}
+    trans_table.update({ord(a): str(i) for i, a in enumerate(arabic)})
+    return s.translate(trans_table)
+
+
+# --------------------------------------------------------------------------- #
 #                         کپشن اصلی (کانال مقصد)                             #
 # --------------------------------------------------------------------------- #
 
@@ -136,7 +155,20 @@ def validate_and_normalize(
         or ""
     ).strip()
 
-    # فقط در فیلدهایی که «کاملاً عددی» هستند، ارقام فارسی را ممنوع می‌کنیم
+    # --- نرمال‌سازی ارقام (فارسی/عربی → لاتین) برای فیلدهای عددی --- #
+    year = normalize_digits(year)
+    km = normalize_digits(km)
+    ins = normalize_digits(ins)
+    phone = normalize_digits(phone)
+    price_raw = normalize_digits(price_raw)
+    # یکسان‌سازی ممیز اعشاری
+    price_raw = (
+        price_raw.replace(",", ".")
+        .replace("\u066B", ".")  # Arabic decimal separator
+        .replace("\u066C", ".")  # Arabic thousands separator (اگر استفاده شود)
+    )
+
+    # فقط در فیلدهایی که «کاملاً عددی» هستند، بعد از نرمال‌سازی، ارقام فارسی نباید بماند
     if (
         contains_persian_digits(year)
         or contains_persian_digits(km)
@@ -146,14 +178,14 @@ def validate_and_normalize(
     ):
         return False, "لطفاً فقط از اعداد لاتین (0-9) در اعداد استفاده کنید.", None
 
-    # نام خودرو: فارسی + انگلیسی + عدد لاتین و فارسی + فاصله
-    # جلوِ رشته‌های عجیب مثل 999999999 را هم می‌گیریم
+    # نام خودرو: فارسی + انگلیسی + عدد (فارسی/لاتین) + فاصله
+    # محدود به ۲ تا ۴۰ کاراکتر، بدون سایر علائم
     if not re.fullmatch(
         r"[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}", car
-    ) or re.search(r"[0-9\u06F0-\u06F9\u0660-\u0669]{5,}", car):
+    ):
         return (
             False,
-            "نام خودرو نامعتبر است (فقط حروف و عدد، و عدد بیش از ۴ رقم پشت‌سرهم نباشد).",
+            "نام خودرو نامعتبر است (فقط حروف فارسی/انگلیسی، عدد و فاصله، بین ۲ تا ۴۰ کاراکتر).",
             None,
         )
 
@@ -186,7 +218,15 @@ def validate_and_normalize(
             None,
         )
 
-    million_val = float(price_raw)
+    try:
+        million_val = float(price_raw)
+    except ValueError:
+        return (
+            False,
+            "قیمت نامعتبر است. مثال: 80 یا 120.5",
+            None,
+        )
+
     toman = int(million_val * 1_000_000)  # تبدیل میلیون → تومان
     price_text = price_words(toman)
 
