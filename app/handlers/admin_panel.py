@@ -75,12 +75,34 @@ async def admin_manage_admins_root(message: types.Message):
 
 @router.message(F.text == "📋 لیست ادمین‌ها")
 async def admin_list_msg(message: types.Message):
+    """
+    فهرست ادمین‌ها را با شکل زیر می‌فرستد:
+        123456789  —  @username
+    یا اگر کاربر username ندارد:
+        123456789  —  Ali Rezaei
+    و اگر خطا در واکشی رخ دهد فقط آیدی نمایش داده می‌شود.
+    """
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
+
     admins = list_admins()
-    txt = "ادمین‌های فعلی:\n" + ("\n".join(map(str, admins)) if admins else "— خالی —")
-    await message.answer(txt)
+    if not admins:
+        await message.answer("— خالی —")
+        return
+
+    lines = ["ادمین‌های فعلی:"]
+    for uid in admins:
+        try:
+            chat = await message.bot.get_chat(uid)
+            uname = getattr(chat, "username", "") or ""
+            full  = getattr(chat, "full_name", "") or getattr(chat, "first_name", "")
+            extra = f"@{uname}" if uname else full
+            lines.append(f"{uid}  —  {extra}" if extra else str(uid))
+        except Exception:
+            lines.append(str(uid))
+
+    await message.answer("\n".join(lines))
 
 @router.message(F.text == "➕ افزودن ادمین")
 async def admin_add_msg(message: types.Message):
