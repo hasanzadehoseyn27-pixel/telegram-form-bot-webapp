@@ -53,7 +53,8 @@ async def admin_panel_root_msg(message: types.Message):
     kb = admin_root_kb(is_owner(message.from_user.id))
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
-@router.message(F.text == "🔙 بازگشت به پنل")
+# این هندلر برای هر متنی که داخلش «بازگشت» باشد عمل می‌کند
+@router.message(F.text.func(lambda t: isinstance(t, str) and "بازگشت" in t))
 async def admin_back_to_panel(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
