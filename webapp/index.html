@@ -19,10 +19,12 @@
         --danger: #ef4444;
         --radius: 14px;
       }
+
       * {
         box-sizing: border-box;
         font-family: "IRANSans", "Segoe UI", sans-serif;
       }
+
       body {
         margin: 0;
         padding: 16px;
@@ -32,71 +34,129 @@
         display: flex;
         justify-content: center;
       }
+
       .wrap {
         width: 100%;
         max-width: 800px;
       }
+
       .card {
         background: var(--card);
-        padding: 22px;
-        border-radius: 18px;
         border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 22px;
         box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
         backdrop-filter: blur(8px);
       }
+
       h1 {
         text-align: center;
         margin: 0 0 20px;
+        font-size: 22px;
       }
-      label {
-        margin-bottom: 5px;
-        font-size: 14px;
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 18px;
       }
-      input,
-      select,
-      textarea {
-        width: 100%;
+
+      .tab {
+        flex: 1;
         padding: 12px;
-        background: #0b1526;
+        background: var(--input-bg);
         border: 1px solid var(--border);
-        color: var(--text);
         border-radius: var(--radius);
-        outline: none;
-        font-size: 15px;
+        text-align: center;
+        cursor: pointer;
+        transition: 0.2s;
       }
-      input:focus,
-      textarea:focus,
-      select:focus {
+
+      .tab.active {
+        color: var(--accent);
         border-color: var(--accent);
+        font-weight: bold;
       }
-      textarea {
-        min-height: 120px;
-        resize: vertical;
+
+      .section {
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
       }
+
       .grid {
         display: grid;
         gap: 16px;
         grid-template-columns: 1fr 1fr;
         margin-bottom: 14px;
       }
+
       @media (max-width: 600px) {
         .grid {
           grid-template-columns: 1fr;
         }
       }
-      .err {
-        color: var(--danger);
-        font-size: 12px;
-        min-height: 16px;
-        margin-top: 4px;
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 12px;
+        border-radius: var(--radius);
+        background: #0b1526;
+        border: 1px solid var(--border);
+        color: var(--text);
+        outline: none;
+        font-size: 15px;
       }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        border-color: var(--accent);
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      label {
+        margin-bottom: 5px;
+        font-size: 14px;
+      }
+
       .muted {
         color: var(--muted);
         font-size: 12px;
         margin-top: 4px;
       }
 
-      /* dialog */
+      .err {
+        color: var(--danger);
+        min-height: 16px;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      button {
+        flex: 1;
+        padding: 12px;
+        background: var(--accent);
+        border: none;
+        border-radius: var(--radius);
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      /* Dialog */
       .dialog {
         position: fixed;
         inset: 0;
@@ -106,32 +166,22 @@
         justify-content: center;
         padding: 16px;
       }
+
       .box {
         background: var(--input-bg);
+        border: 1px solid var(--border);
         padding: 20px;
         border-radius: var(--radius);
-        border: 1px solid var(--border);
+        width: 100%;
         max-width: 550px;
-        width: 100%;
       }
-      button {
-        padding: 12px;
-        width: 100%;
-        border: none;
-        border-radius: var(--radius);
-        background: var(--accent);
-        font-weight: bold;
-      }
-      .row {
-        display: flex;
-        gap: 12px;
-        margin-top: 16px;
-      }
+
       .preview {
-        white-space: pre-line;
         border: 1px dashed var(--border);
         padding: 12px;
         border-radius: var(--radius);
+        white-space: pre-line;
+        color: var(--muted);
       }
     </style>
   </head>
@@ -141,87 +191,105 @@
       <div class="card">
         <h1>بانک خودرو همکاران</h1>
 
-        <div class="grid">
-          <div>
-            <label>نام خودرو *</label>
-            <input id="car" placeholder="مثلاً: پژو 206 یا Sonata" />
-            <div class="err" id="e_car"></div>
-          </div>
-          <div>
-            <label>سال ساخت *</label>
-            <input id="year" inputmode="numeric" placeholder="مثلاً 1401" />
-            <div class="err" id="e_year"></div>
-          </div>
+        <div class="tabs">
+          <div class="tab active" data-cat="فروش کارکرده">فروش کارکرده</div>
+          <div class="tab" data-cat="فروش همکاری">فروش همکاری</div>
+          <div class="tab" data-cat="درخواست خرید">درخواست خرید</div>
+          <div class="tab" data-cat="فروش صفر">فروش صفر</div>
         </div>
 
-        <div class="grid">
-          <div>
-            <label>رنگ *</label>
-            <input id="color" placeholder="مثلاً سفید" />
-            <div class="err" id="e_color"></div>
-          </div>
-          <div>
-            <label>کارکرد (کیلومتر) *</label>
-            <input id="km" inputmode="numeric" placeholder="مثلاً 45000" />
-            <div class="err" id="e_km"></div>
-          </div>
-        </div>
+        <div class="section">
+          <!-- نام خودرو و سال -->
+          <div class="grid">
+            <div>
+              <label>نام خودرو *</label>
+              <input id="car" placeholder="مثلاً: پژو 206 یا Sonata 2018" />
+              <div class="err" id="e_car"></div>
+            </div>
 
-        <div class="grid">
-          <div>
-            <label>شماره تماس *</label>
-            <input
-              id="phone"
-              inputmode="numeric"
-              placeholder="مثلاً 09123456789"
-            />
-            <div class="err" id="e_phone"></div>
+            <div>
+              <label>سال ساخت *</label>
+              <input id="year" inputmode="numeric" placeholder="مثلاً 1401" />
+              <div class="err" id="e_year"></div>
+            </div>
           </div>
-          <div>
-            <label>مهلت بیمه (ماه)</label>
-            <input id="insurance" inputmode="numeric" placeholder="مثلاً 6" />
-            <div class="err" id="e_ins"></div>
+
+          <!-- رنگ و کارکرد -->
+          <div class="grid">
+            <div>
+              <label>رنگ *</label>
+              <input id="color" placeholder="مثلاً سفید" />
+              <div class="err" id="e_color"></div>
+            </div>
+
+            <div>
+              <label>کارکرد (کیلومتر) *</label>
+              <input id="km" inputmode="numeric" placeholder="مثلاً 45000" />
+              <div class="err" id="e_km"></div>
+            </div>
           </div>
-        </div>
 
-        <div class="grid">
-          <div>
-            <label>گیربکس</label>
-            <select id="gear">
-              <option value="">— خالی —</option>
-              <option>اتومات</option>
-              <option>دنده‌ای</option>
-            </select>
+          <!-- بیمه و گیربکس -->
+          <div class="grid">
+            <div>
+              <label>مهلت بیمه (ماه)</label>
+              <input id="insurance" inputmode="numeric" placeholder="مثلاً 6" />
+              <div class="err" id="e_ins"></div>
+            </div>
+            <div>
+              <label>گیربکس</label>
+              <select id="gear">
+                <option value="">— خالی —</option>
+                <option>اتومات</option>
+                <option>دنده‌ای</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        <!-- قیمت -->
-        <label>قیمت (بر اساس میلیون تومان) *</label>
-        <input
-          id="price"
-          inputmode="decimal"
-          placeholder="مثلاً: 80 یا 120.5 یا 2500"
-        />
-        <div id="price_hint" class="muted"></div>
-        <div class="err" id="e_price"></div>
+          <!-- شماره تماس -->
+          <div class="grid">
+            <div>
+              <label>شماره تماس *</label>
+              <input
+                id="phone"
+                inputmode="tel"
+                placeholder="مثلاً: 09123456789"
+              />
+              <div class="muted">
+                فقط ارقام لاتین، فرمت 09xxxxxxxxx (۱۱ رقم)
+              </div>
+              <div class="err" id="e_phone"></div>
+            </div>
+          </div>
 
-        <label style="margin-top: 12px">توضیحات</label>
-        <textarea id="desc" placeholder="دلخواه"></textarea>
-        <div class="err" id="e_desc"></div>
+          <!-- قیمت -->
+          <label>قیمت (بر اساس میلیون تومان) *</label>
+          <input
+            id="price"
+            inputmode="decimal"
+            placeholder="مثلاً: 80 یا 2500 یا 120.5"
+          />
+          <div id="price_hint" class="muted"></div>
+          <div class="err" id="e_price"></div>
 
-        <div class="row">
-          <button id="submit">ثبت فرم</button>
+          <!-- توضیحات -->
+          <label style="margin-top: 12px">توضیحات</label>
+          <textarea id="desc" placeholder="دلخواه"></textarea>
+
+          <div class="row">
+            <button id="submit">ثبت فرم</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- dialog -->
+    <!-- Dialog -->
     <div id="dlg" class="dialog">
       <div class="box">
         <h3>پیش‌نمایش</h3>
         <div id="preview" class="preview"></div>
 
-        <div class="row">
+        <div class="row" style="margin-top: 12px">
           <button
             id="cancel"
             style="
@@ -239,103 +307,178 @@
 
     <script>
       const tg = window.Telegram.WebApp;
+      tg.expand();
       tg.ready();
       const $ = (s) => document.querySelector(s);
 
-      /* نمایش خوانای قیمت */
-      function formatPrice(v) {
-        if (!v) return "";
-        let num = parseFloat(v);
-        if (isNaN(num) || num <= 0) return "";
-        let tom = num * 1_000_000;
+      /* CATEGORY */
+      let category = "فروش کارکرده";
+      document.querySelectorAll(".tab").forEach((t) => {
+        t.onclick = () => {
+          document
+            .querySelectorAll(".tab")
+            .forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+          category = t.dataset.cat;
+        };
+      });
+
+      /* کمک‌تابع خطا */
+      function setErr(id, msg) {
+        $("#e_" + id).textContent = msg || "";
+      }
+
+      function clearErrors() {
+        ["car", "year", "color", "km", "ins", "phone", "price"].forEach((k) =>
+          setErr(k, "")
+        );
+      }
+
+      function containsPersianDigits(s) {
+        // ارقام فارسی + عربی
+        return /[\u06F0-\u06F9\u0660-\u0669]/.test(s || "");
+      }
+
+      /* تبدیل ورودی میلیون → تومان خوانا */
+      function formatFromMillion(input) {
+        if (!input) return "";
+        let val = parseFloat(input.replace(",", "."));
+        if (isNaN(val) || val <= 0) return "";
+
+        // فقط یک رقم اعشار در نظر بگیر (مثل 120.5)
+        val = Math.round(val * 10) / 10;
+
+        let toman = Math.round(val * 1_000_000);
         let parts = [];
-        if (tom >= 1_000_000_000) {
-          let b = Math.floor(tom / 1_000_000_000);
+
+        if (toman >= 1_000_000_000) {
+          let b = Math.floor(toman / 1_000_000_000);
           parts.push(b + " میلیارد");
-          tom %= 1_000_000_000;
+          toman %= 1_000_000_000;
         }
-        if (tom >= 1_000_000) {
-          let m = Math.floor(tom / 1_000_000);
+        if (toman >= 1_000_000) {
+          let m = Math.floor(toman / 1_000_000);
           parts.push(m + " میلیون");
-          tom %= 1_000_000;
+          toman %= 1_000_000;
         }
-        if (tom >= 1_000) {
-          let k = Math.floor(tom / 1_000);
+        if (toman >= 1_000) {
+          let k = Math.floor(toman / 1_000);
           parts.push(k + " هزار");
         }
         return parts.join(" و ") + " تومان";
       }
 
-      /* قیمت */
-      $("#price").oninput = () => {
-        let val = $("#price").value;
-        val = val.replace(/[^0-9.]/g, "");
-        if ((val.match(/\./g) || []).length > 1) {
-          val = val.substring(0, val.lastIndexOf("."));
-        }
-        $("#price").value = val;
-        $("#price_hint").textContent = formatPrice(val);
-      };
+      function updatePriceHint() {
+        const v = $("#price").value;
+        const words = formatFromMillion(v);
+        const examples =
+          "مثال‌ها: 120.5 → 120 میلیون و 500 هزار • 1500.7 → 1 میلیارد و 500 میلیون و 700 هزار • 2500 → 2 میلیارد و 500 میلیون • 80.2 → 80 میلیون و 200 هزار";
+        $("#price_hint").textContent = (words ? words + " — " : "") + examples;
+      }
 
-      /* اعتبارسنجی */
+      /* قیمت: فقط رقم و یک نقطه، اعشار ۱ رقمی */
+      $("#price").addEventListener("input", () => {
+        let v = $("#price").value.replace(/[^0-9.,]/g, "");
+        v = v.replace(",", ".");
+        const parts = v.split(".");
+        if (parts.length > 2) {
+          v = parts[0] + "." + parts.slice(1).join("");
+        }
+        const p2 = v.split(".");
+        if (p2[1] && p2[1].length > 1) {
+          v = p2[0] + "." + p2[1].slice(0, 1);
+        }
+        $("#price").value = v;
+        setErr("price", "");
+        updatePriceHint();
+      });
+
+      /* Validation */
       function validate(p) {
+        clearErrors();
         let ok = true;
 
-        if (!/^[آ-یA-Za-z0-9\s]{2,40}$/.test(p.car)) {
-          $("#e_car").textContent = "نام خودرو مجاز نیست.";
+        // نام خودرو: فارسی + انگلیسی + عدد (لاتین و فارسی) + فاصله
+        if (
+          !/^[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}$/.test(p.car) ||
+          /[0-9\u06F0-\u06F9\u0660-\u0669]{5,}/.test(p.car)
+        ) {
+          setErr(
+            "car",
+            "نام خودرو معتبر نیست (عدد بیش از ۴ رقم پشت‌سرهم نباشد)."
+          );
           ok = false;
-        } else $("#e_car").textContent = "";
+        }
 
-        if (!/^\d{4}$/.test(p.year)) {
-          $("#e_year").textContent = "سال باید ۴ رقم باشد.";
+        if (containsPersianDigits(p.year) || !/^[0-9]{4}$/.test(p.year)) {
+          setErr("year", "سال ساخت باید ۴ رقم لاتین باشد.");
           ok = false;
-        } else $("#e_year").textContent = "";
+        }
 
         if (!/^[آ-ی\s]{1,12}$/.test(p.color)) {
-          $("#e_color").textContent = "رنگ فقط فارسی.";
+          setErr("color", "رنگ فقط حروف فارسی (حداکثر ۱۲ کاراکتر) باشد.");
           ok = false;
-        } else $("#e_color").textContent = "";
+        }
 
-        if (!/^\d{1,6}$/.test(p.km)) {
-          $("#e_km").textContent = "کارکرد نامعتبر.";
+        if (containsPersianDigits(p.km) || !/^[0-9]{1,6}$/.test(p.km)) {
+          setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
           ok = false;
-        } else $("#e_km").textContent = "";
+        }
 
-        if (!/^09\d{9}$/.test(p.phone)) {
-          $("#e_phone").textContent = "شماره موبایل صحیح نیست.";
+        if (
+          p.insurance &&
+          (containsPersianDigits(p.insurance) ||
+            !/^[0-9]{1,2}$/.test(p.insurance))
+        ) {
+          setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
           ok = false;
-        } else $("#e_phone").textContent = "";
+        }
 
-        if (!p.price || parseFloat(p.price) <= 0) {
-          $("#e_price").textContent = "قیمت لازم است.";
+        if (
+          containsPersianDigits(p.phone) ||
+          !/^09\d{9}$/.test(p.phone || "")
+        ) {
+          setErr("phone", "شماره تماس باید ۱۱ رقم و با فرمت 09xxxxxxxxx باشد.");
           ok = false;
-        } else $("#e_price").textContent = "";
+        }
+
+        if (!p.price || isNaN(parseFloat(p.price))) {
+          setErr(
+            "price",
+            "قیمت را به میلیون تومان وارد کنید (مثلاً 80 یا 120.5)."
+          );
+          ok = false;
+        }
 
         return ok;
       }
 
+      /* Submit */
       $("#submit").onclick = () => {
-        let p = {
+        const data = {
+          category,
           car: $("#car").value.trim(),
           year: $("#year").value.trim(),
           color: $("#color").value.trim(),
           km: $("#km").value.trim(),
-          phone: $("#phone").value.trim(),
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
-          price: $("#price").value.trim(),
+          phone: $("#phone").value.trim(),
+          price: $("#price").value.trim(), // میلیون
           desc: $("#desc").value.trim(),
         };
 
-        if (!validate(p)) return;
+        if (!validate(data)) return;
 
-        $("#preview").textContent = `نام خودرو: ${p.car}
-سال ساخت: ${p.year}
-رنگ: ${p.color}
-کارکرد: ${p.km}
-شماره تماس: ${p.phone}
-قیمت: ${formatPrice(p.price)}
-${p.desc ? "توضیحات:\n" + p.desc : ""}`;
+        $("#preview").textContent = `
+دسته: ${data.category}
+نام خودرو: ${data.car}
+سال: ${data.year}
+رنگ: ${data.color}
+کارکرد: ${data.km}
+قیمت: ${formatFromMillion(data.price)}
+شماره تماس: ${data.phone}
+${data.desc ? "توضیحات:\n" + data.desc : ""}`.trim();
 
         $("#dlg").style.display = "flex";
       };
@@ -343,21 +486,25 @@ ${p.desc ? "توضیحات:\n" + p.desc : ""}`;
       $("#cancel").onclick = () => ($("#dlg").style.display = "none");
 
       $("#confirm").onclick = () => {
-        tg.sendData(
-          JSON.stringify({
-            car: $("#car").value.trim(),
-            year: $("#year").value.trim(),
-            color: $("#color").value.trim(),
-            km: $("#km").value.trim(),
-            phone: $("#phone").value.trim(),
-            insurance: $("#insurance").value.trim(),
-            gear: $("#gear").value,
-            million_price: $("#price").value.trim(),
-            desc: $("#desc").value.trim(),
-          })
-        );
+        const payload = {
+          category,
+          car: $("#car").value.trim(),
+          year: $("#year").value.trim(),
+          color: $("#color").value.trim(),
+          km: $("#km").value.trim(),
+          insurance: $("#insurance").value.trim(),
+          gear: $("#gear").value,
+          phone: $("#phone").value.trim(),
+          price: $("#price").value.trim(), // همان فیلدی که backend می‌خواند
+          desc: $("#desc").value.trim(),
+        };
+
+        tg.sendData(JSON.stringify(payload));
         tg.close();
       };
+
+      // هینت اولیه‌ی قیمت
+      updatePriceHint();
     </script>
   </body>
 </html>
