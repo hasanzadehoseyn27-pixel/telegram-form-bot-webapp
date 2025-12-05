@@ -1,11 +1,13 @@
 from __future__ import annotations
 from aiogram import Router, types, F
 
+import re  # ← لازم برای regex جدید
+
 from ..config import SETTINGS
 from ..keyboards import admin_review_kb
 from ..storage import is_admin
 from .state import PENDING, ADMIN_EDIT_WAIT
-from .common import _parse_admin_price
+from .common import normalize_digits  # ← برای تبدیل ارقام فارسی
 from .user_flow import build_caption, price_words
 
 router = Router()
@@ -70,11 +72,26 @@ async def on_admin_text_edit(message: types.Message):
 
     # ------------------- ویرایش قیمت -------------------
     if field == "price":
-        ok, n_toman = _parse_admin_price(message.text)
-        if not ok:
-            await message.reply("❌ قیمت نامعتبر است.\nمثال صحیح: 80 یا 120.5 یا 2500")
+
+        # 1) تبدیل ارقام فارسی → لاتین
+        raw = normalize_digits(message.text or "").replace(",", ".").strip()
+
+        # 2) همان regex فرم اولیه
+        if not re.fullmatch(r"\d+(\.\d{1,3})?", raw):
+            await message.reply("❌ قیمت نامعتبر است.\nمثال: 80 یا 120.5 یا 2500")
             return
 
+        # 3) تبدیل به float
+        try:
+            million = float(raw)
+        except:
+            await message.reply("❌ فرمت عددی صحیح نیست.")
+            return
+
+        # 4) تبدیل به تومان
+        n_toman = int(round(million * 1_000_000))
+
+        # 5) ساخت price_words مثل فرم
         form["price_num"] = n_toman
         form["price_words"] = price_words(n_toman)
 
@@ -225,6 +242,7 @@ async def cb_reject(call: types.CallbackQuery):
         except:
             pass
 
+    # حذف از حافظه
     PENDING.pop(token, None)
 
     await call.answer("آگهی حذف شد.", show_alert=True)
