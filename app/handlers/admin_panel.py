@@ -127,12 +127,7 @@ async def admin_add_msg(message: types.Message):
         await message.answer("دسترسی ندارید.")
         return
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "add"}
-    await message.answer(
-        "آیدی عددی کاربر را ارسال کنید، یا یکی از موارد زیر:\n"
-        "• @username کاربر\n"
-        "• لینک t.me/username\n"
-        "• یا پیام کاربر را برای من فوروارد کنید."
-    )
+    await message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
 
 @router.message(F.text == "🗑 حذف ادمین")
 async def admin_remove_msg(message: types.Message):
@@ -140,69 +135,14 @@ async def admin_remove_msg(message: types.Message):
         await message.answer("دسترسی ندارید.")
         return
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
-    await message.answer(
-        "برای حذف ادمین، یکی از موارد زیر را بفرستید:\n"
-        "• آیدی عددی ادمین\n"
-        "• @username ادمین\n"
-        "• لینک t.me/username\n"
-        "• یا پیام ادمین را برای من فوروارد کنید."
-    )
+    await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
 
-@router.message(F.text, F.from_user.id.func(lambda uid: uid in ADMIN_WAIT_INPUT))
+@router.message(F.text.regexp(r"^\d{4,}$"))
 async def admin_id_input(message: types.Message):
-    """
-    دریافت ورودی برای افزودن/حذف ادمین:
-      - آیدی عددی (123456789)
-      - @username
-      - لینک t.me/username
-      - یا فوروارد کردن پیام کاربر
-    """
     w = ADMIN_WAIT_INPUT.get(message.from_user.id)
     if not w or not is_admin(message.from_user.id):
         return
-
-    raw = (message.text or "").strip()
-    uid: int | None = None
-
-    # 1) اگر پیام را از آن کاربر فوروارد کرده باشد → از forward_from.id استفاده کن
-    if message.forward_from:
-        uid = message.forward_from.id
-
-    # 2) اگر ورودی فقط عدد بود → همان آیدی عددی
-    if uid is None and re.fullmatch(r"\d{4,}", raw):
-        uid = int(raw)
-
-    # 3) اگر چیزی شبیه @username یا لینک t.me/username فرستاد
-    username: str | None = None
-    if uid is None:
-        # حالت @username
-        m = re.search(r"@([A-Za-z0-9_]{5,})", raw)
-        if not m:
-            # حالت لینک t.me/username
-            m = re.search(r"(?:https?://)?t\.me/([^ \n]+)", raw)
-        if m:
-            username = m.group(1).split("?")[0].lstrip("@")
-
-    if uid is None and username:
-        try:
-            chat = await message.bot.get_chat(username)
-            uid = chat.id
-        except Exception:
-            uid = None
-
-    # اگر هنوز نتوانستیم uid را به‌دست بیاوریم → پیام راهنما
-    if uid is None:
-        await message.reply(
-            "ورودی نامعتبر است.\n"
-            "لطفاً یکی از موارد زیر را بفرستید:\n"
-            "• آیدی عددی کاربر (مثلاً 123456789)\n"
-            "• @username کاربر\n"
-            "• لینک t.me/username\n"
-            "• یا پیام کاربر را برای من فوروارد کنید."
-        )
-        # state را نگه می‌داریم تا دوباره تلاش کند
-        return
-
+    uid = int(message.text.strip())
     mode = w["mode"]
     if mode == "add":
         ok = add_admin(uid)
@@ -210,7 +150,6 @@ async def admin_id_input(message: types.Message):
     elif mode == "remove":
         ok = remove_admin(uid)
         await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
-
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
 
 # --------------------------------------------------------------------------- #
