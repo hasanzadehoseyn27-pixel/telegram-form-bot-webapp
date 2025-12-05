@@ -460,7 +460,7 @@ async def cb_finish(call: types.CallbackQuery):
     grp = await publish_to_destination(
         call.bot,
         form,
-        show_price=True,
+        show_price=False,
         show_desc=False,
     )
 

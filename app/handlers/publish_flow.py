@@ -144,13 +144,13 @@ async def cb_publish(call: types.CallbackQuery):
     for chat_id, msg_id in info["admin_msgs"]:
         try:
             await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
-            await call.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="✅ اعمال شد روی پست گروه")
+            await call.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="✅تغییرات روی پست اعمال شد")
         except Exception:
             pass
 
     await call.answer("اعمال شد.")
     try:
-        await call.message.edit_text("✅ اعمال شد روی پست گروه")
+        await call.message.edit_text("✅ تغییرات روی پست اعمال شد")
     except Exception:
         pass
 
