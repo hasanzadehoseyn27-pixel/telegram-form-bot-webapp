@@ -119,6 +119,12 @@ async def on_admin_text_edit(message: types.Message):
 #                            اعمال نهایی روی پست                              #
 # --------------------------------------------------------------------------- #
 
+@router.message(F.text.startswith("/show"))
+async def show_hidden(message: types.Message):
+    raw = message.text.split(" ",1)[1]
+    await message.answer( ''.join(f"{ord(c)} " for c in raw) )
+
+
 @router.callback_query(F.data.startswith("publish:"))
 async def cb_publish(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
