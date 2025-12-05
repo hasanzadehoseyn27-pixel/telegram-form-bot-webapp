@@ -61,16 +61,10 @@ def build_caption(
     show_desc: bool,
 ) -> str:
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
-    phone = "\u200e09127475355\u200e"  # شماره بدون تغییر + LRM
+    phone = "\u200e09127475355\u200e"
 
     parts = [
-        # 1) نوع آگهی در بالای کپشن
         f"🏷️ <b>{html.quote(form['category'])}</b>",
-
-        # 2) شماره آگهی + آیکن + تاریخ
-        f"⏳ <b>آگهی شماره #{number}</b> | <i>{jdate}</i>",
-
-        # 3) سایر فیلدها
         f"🚗 <b>نام خودرو:</b> {html.quote(form['car'])}",
         f"📅 <b>سال ساخت:</b> {html.quote(form['year'])}",
         f"🎨 <b>رنگ:</b> {html.quote(form['color'])}",
@@ -85,9 +79,14 @@ def build_caption(
     if show_desc and (form.get("desc") or "").strip():
         parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
 
-    # 4) بخش تماس + خط جداکننده
+    parts.append("")
     parts.append(f"☎️ <b>تماس:</b>\nکیوان — {phone}")
-    parts.append("────────────")
+
+    parts.append("────────────────────────")
+
+    # 🔖 شماره آگهی و تاریخ زیر هم
+    parts.append(f"🔖 <b>آگهی شماره #{number}</b>")
+    parts.append(f"📅 <i>{jdate}</i>")
 
     return "\n".join(parts)
 
