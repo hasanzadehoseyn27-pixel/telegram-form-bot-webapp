@@ -11,32 +11,36 @@ DAILY_FILE = DATA / "daily.json"
 def next_daily_number() -> tuple[int, str]:
     """
     شمارندهٔ سراسری آگهی (بدون ریست روزانه).
-    هر بار که صدا زده شود، عدد را ۱ واحد زیاد می‌کند و
-    تاریخ امروز را نیز برمی‌گرداند.
+
+    - در فایل DAILY_FILE مقدار آخر ذخیره می‌شود.
+    - هر بار صدا زده شود، num یک واحد افزایش می‌یابد.
+    - تاریخ امروز نیز برگردانده می‌شود تا در کپشن استفاده شود.
     """
     today = date.today().isoformat()
 
     # مقدار پیش‌فرض
-    data: dict = {"date": today, "num": 0}
+    num = 0
 
-    # اگر قبلاً فایلی وجود دارد، num قبلی را می‌خوانیم
+    # اگر فایل قبلاً ساخته شده است، عدد قبلی را می‌خوانیم
     if DAILY_FILE.exists():
         try:
-            loaded = json.loads(DAILY_FILE.read_text(encoding="utf-8")) or {}
-            if isinstance(loaded, dict):
-                # num قبلی را نگه می‌داریم (اگر باشد)
-                if "num" in loaded:
-                    data["num"] = int(loaded.get("num", 0))
+            saved = json.loads(DAILY_FILE.read_text(encoding="utf-8")) or {}
+            if isinstance(saved, dict):
+                num = int(saved.get("num", 0))
         except Exception:
+            # اگر هر مشکلی بود، از num=0 شروع می‌کنیم
             pass
 
-    # همیشه ۱ واحد زیاد می‌کنیم (بدون توجه به تاریخ ذخیره‌شده)
-    data["num"] = int(data.get("num", 0)) + 1
-    data["date"] = today
+    # همیشه یک عدد زیاد می‌کنیم
+    num += 1
 
+    data = {"date": today, "num": num}
+
+    # ذخیره روی دیسک
     try:
         DAILY_FILE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
 
-    return data["num"], today
+    # برگرداندن شماره و تاریخ امروز
+    return num, today
