@@ -23,6 +23,17 @@ def contains_persian_digits(s: str) -> bool:
     return bool(re.search(r"[\u06F0-\u06F9\u0660-\u0669]", s or ""))
 
 
+def normalize_digits(s: str) -> str:
+    """تبدیل ارقام فارسی و عربی به لاتین"""
+    if not s:
+        return ""
+    persian = "۰۱۲۳۴۵۶۷۸۹"
+    arabic = "٠١٢٣٤٥٦٧٨٩"
+    trans = {ord(p): str(i) for i, p in enumerate(persian)}
+    trans.update({ord(a): str(i) for i, a in enumerate(arabic)})
+    return s.translate(trans)
+
+
 def price_words(num: int) -> str:
     if num >= 100_000_000_000:
         num = 100_000_000_000
@@ -44,29 +55,31 @@ def price_words(num: int) -> str:
     return " و ".join(parts) + " تومان"
 
 
-# تبدیل million‑تومانیِ ورودیِ کاربر به رقم تومان
+# تبدیل million-تومانیِ ورودیِ کاربر به رقم تومان
 def _price_million_to_toman_str(raw: str) -> tuple[bool, int]:
-    s = (raw or "").replace(" ", "").replace(",", ".").replace("\u066B", ".")
-    if contains_persian_digits(s):
-        return False, 0
+    s = normalize_digits(raw or "").replace(" ", "").replace(",", ".").replace("\u066B", ".")
     if not s:
         return True, 0
-    if not re.fullmatch(r"\d{1,5}(\.\d)?", s):
+
+    if not re.fullmatch(r"\d+(\.\d{1,3})?", s):
         return False, 0
+
     v = float(s)
-    if v * 1_000_000 > 100_000_000_000 + 1:
-        return False, 0
     return True, int(round(v * 1_000_000))
 
 
 def _parse_admin_price(text: str) -> tuple[bool, int]:
-    s = (text or "").strip().replace(",", ".").replace("\u066B", ".")
-    if contains_persian_digits(s):
+    """منطق قیمت ادمین مثل فرم اولیه → هر عددی با اعشار 1 تا 3 رقم مجاز است"""
+    s = normalize_digits(text or "").strip().replace(",", ".").replace("\u066B", ".")
+
+    # اگر چیز غیرعددی بود
+    if not re.fullmatch(r"\d+(\.\d{1,3})?", s):
         return False, 0
-    if re.fullmatch(r"\d{1,5}(\.\d)?", s):
-        return True, int(round(float(s) * 1_000_000))
-    if re.fullmatch(r"\d{1,12}", s):
-        n = int(s)
-        if 1 <= n <= 100_000_000_000:
-            return True, n
-    return False, 0
+
+    try:
+        million = float(s)
+    except:
+        return False, 0
+
+    toman = int(round(million * 1_000_000))
+    return True, toman

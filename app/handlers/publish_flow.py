@@ -26,8 +26,11 @@ async def cb_edit_price(call: types.CallbackQuery):
         return
 
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "price"}
+
     await call.message.reply(
-        "قیمت جدید را با ارقام لاتین بفرستید (میلیون با اعشار یک‌رقمی یا تومان خالی)."
+        "📝 قیمت جدید را وارد کنید.\n"
+        "مثال: 80 (میلیون) یا 120.5 یا 2500\n"
+        "همه به میلیون تومان محاسبه می‌شوند."
     )
     await call.answer()
 
@@ -44,7 +47,8 @@ async def cb_edit_desc(call: types.CallbackQuery):
         return
 
     ADMIN_EDIT_WAIT[call.from_user.id] = {"token": token, "field": "desc"}
-    await call.message.reply("توضیحات جدید را بفرستید.")
+
+    await call.message.reply("📝 متن جدید توضیحات را ارسال کنید.")
     await call.answer()
 
 
@@ -56,6 +60,7 @@ async def on_admin_text_edit(message: types.Message):
 
     token, field = w["token"], w["field"]
     info = PENDING.get(token)
+
     if not info:
         ADMIN_EDIT_WAIT.pop(message.from_user.id, None)
         await message.reply("درخواست یافت نشد.")
@@ -63,21 +68,27 @@ async def on_admin_text_edit(message: types.Message):
 
     form = info["form"]
 
+    # ------------------- ویرایش قیمت -------------------
     if field == "price":
         ok, n_toman = _parse_admin_price(message.text)
         if not ok:
-            await message.reply("عدد نامعتبر.")
+            await message.reply("❌ قیمت نامعتبر است.\nمثال صحیح: 80 یا 120.5 یا 2500")
             return
+
         form["price_num"] = n_toman
         form["price_words"] = price_words(n_toman)
-        await message.reply(f"قیمت به «{form['price_words']}» تغییر کرد.")
 
+        await message.reply(f"💰 قیمت جدید ثبت شد: «{form['price_words']}»")
+
+    # ------------------- ویرایش توضیحات -------------------
     elif field == "desc":
         form["desc"] = message.text.strip()
-        await message.reply("توضیحات به‌روزرسانی شد.")
+        await message.reply("📝 توضیحات به‌روزرسانی شد.")
 
+    # پاک‌کردن وضعیت انتظار
     ADMIN_EDIT_WAIT.pop(message.from_user.id, None)
 
+    # نمایش پنل دوباره
     await message.answer(
         "ویرایش/اعمال:\n"
         f"• قیمت فعلی: {form.get('price_words') or '—'}\n"
@@ -85,6 +96,7 @@ async def on_admin_text_edit(message: types.Message):
         "یک مورد را انتخاب کنید:",
         reply_markup=admin_review_kb(token),
     )
+
 
 # --------------------------------------------------------------------------- #
 #                            اعمال نهایی روی پست                              #
@@ -98,6 +110,7 @@ async def cb_publish(call: types.CallbackQuery):
 
     token = call.data.split(":", 1)[1]
     info = PENDING.get(token)
+
     if not info:
         await call.answer("درخواست یافت نشد.", show_alert=True)
         return
@@ -117,6 +130,7 @@ async def cb_publish(call: types.CallbackQuery):
         show_desc=show_desc
     )
 
+    # اعمال و ویرایش پست اصلی
     try:
         if grp["has_photos"]:
             await call.bot.edit_message_caption(
@@ -133,28 +147,39 @@ async def cb_publish(call: types.CallbackQuery):
                 parse_mode="HTML",
             )
     except Exception:
-        # اگر ادیت نشد، پیام جدید ارسال می‌کنیم
         try:
             await call.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
         except Exception:
             await call.answer("خطا در ارسال/ادیت پست.", show_alert=True)
             return
 
-    # قفل کردن پنل ادمین‌ها
-    for chat_id, msg_id in info["admin_msgs"]:
+    # بستن صفحهٔ ادمین‌ها
+    for admin_chat_id, admin_msg_id in info["admin_msgs"]:
         try:
-            await call.bot.edit_message_reply_markup(chat_id=chat_id, message_id=msg_id, reply_markup=None)
-            await call.bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="✅تغییرات روی پست اعمال شد")
+            await call.bot.edit_message_reply_markup(
+                chat_id=admin_chat_id,
+                message_id=admin_msg_id,
+                reply_markup=None
+            )
+            await call.bot.edit_message_text(
+                chat_id=admin_chat_id,
+                message_id=admin_msg_id,
+                text="✅ تغییرات روی پست اعمال شد"
+            )
         except Exception:
             pass
 
     await call.answer("اعمال شد.")
+
+    # پیام خود ادمین
     try:
         await call.message.edit_text("✅ تغییرات روی پست اعمال شد")
     except Exception:
         pass
 
+    # حذف از حالت pending
     PENDING.pop(token, None)
+
 
 # --------------------------------------------------------------------------- #
 #                              رد کردن / حذف پست                              #
@@ -162,14 +187,6 @@ async def cb_publish(call: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("reject:"))
 async def cb_reject(call: types.CallbackQuery):
-    """
-    وقتی ادمین آگهی را رد می‌کند:
-      - اگر تصویر دارد → حذف کامل مدیاگروپ
-      - اگر متن است → حذف تک پیام
-      - پیام‌های ادمین قفل می‌شوند
-      - از PENDING حذف می‌شود
-    """
-
     if not is_admin(call.from_user.id):
         await call.answer("شما ادمین نیستید.", show_alert=True)
         return
@@ -185,11 +202,11 @@ async def cb_reject(call: types.CallbackQuery):
     chat_id = grp.get("chat_id")
     msg_id = grp.get("msg_id")
 
-    # حذف پیام اصلی
+    # حذف پست اصلی
     if chat_id and msg_id:
         try:
             await call.bot.delete_message(chat_id=chat_id, message_id=msg_id)
-        except Exception:
+        except:
             pass
 
     # قفل کردن پیام‌های ادمین
@@ -205,15 +222,14 @@ async def cb_reject(call: types.CallbackQuery):
                 message_id=admin_msg_id,
                 text="❌ این آگهی توسط ادمین رد شد."
             )
-        except Exception:
+        except:
             pass
 
-    # حذف از حافظه
     PENDING.pop(token, None)
 
     await call.answer("آگهی حذف شد.", show_alert=True)
 
     try:
         await call.message.edit_text("❌ آگهی حذف شد.")
-    except Exception:
+    except:
         pass
