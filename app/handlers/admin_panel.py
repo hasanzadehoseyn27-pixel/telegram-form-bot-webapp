@@ -137,20 +137,28 @@ async def admin_remove_msg(message: types.Message):
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
     await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
 
-@router.message(F.text.regexp(r"^\d{4,}$"))
+@router.message(
+    F.text.regexp(r"^\d{4,}$"),
+    F.from_user.id.func(lambda uid: uid in ADMIN_WAIT_INPUT)
+)
 async def admin_id_input(message: types.Message):
     w = ADMIN_WAIT_INPUT.get(message.from_user.id)
     if not w or not is_admin(message.from_user.id):
         return
+
     uid = int(message.text.strip())
     mode = w["mode"]
+
     if mode == "add":
         ok = add_admin(uid)
         await message.reply("✅ اضافه شد." if ok else "ℹ️ قبلاً ادمین بوده.")
+
     elif mode == "remove":
         ok = remove_admin(uid)
         await message.reply("🗑 حذف شد." if ok else "⚠️ امکان حذف نیست/یافت نشد.")
+
     ADMIN_WAIT_INPUT.pop(message.from_user.id, None)
+
 
 # --------------------------------------------------------------------------- #
 #                       بخش «کانال‌های مجاز ارسال» (OWNER)                   #
