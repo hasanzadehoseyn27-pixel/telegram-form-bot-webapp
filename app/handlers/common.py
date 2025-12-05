@@ -34,6 +34,24 @@ def normalize_digits(s: str) -> str:
     return s.translate(trans)
 
 
+def clean_text(s: str) -> str:
+    """حذف تمام کاراکترهای مخفی تلگرام که regex را خراب می‌کند"""
+    if not s:
+        return ""
+    hidden = [
+        "\u200f",  # RTL mark
+        "\u200e",  # LTR mark
+        "\u202a",  # LRE
+        "\u202b",  # RLE
+        "\u202c",  # PDF
+        "\u202d",  # LRO
+        "\u202e",  # RLO
+    ]
+    for h in hidden:
+        s = s.replace(h, "")
+    return s
+
+
 def price_words(num: int) -> str:
     if num >= 100_000_000_000:
         num = 100_000_000_000
@@ -55,24 +73,34 @@ def price_words(num: int) -> str:
     return " و ".join(parts) + " تومان"
 
 
-# تبدیل million-تومانیِ ورودیِ کاربر به رقم تومان
+# تبدیل ورودی million به تومان
 def _price_million_to_toman_str(raw: str) -> tuple[bool, int]:
-    s = normalize_digits(raw or "").replace(" ", "").replace(",", ".").replace("\u066B", ".")
+    s = clean_text(normalize_digits(raw or "")).replace(" ", "")
+    s = s.replace(",", ".").replace("\u066B", ".")
     if not s:
         return True, 0
-
     if not re.fullmatch(r"\d+(\.\d{1,3})?", s):
         return False, 0
-
     v = float(s)
     return True, int(round(v * 1_000_000))
 
 
 def _parse_admin_price(text: str) -> tuple[bool, int]:
-    """منطق قیمت ادمین مثل فرم اولیه → هر عددی با اعشار 1 تا 3 رقم مجاز است"""
-    s = normalize_digits(text or "").strip().replace(",", ".").replace("\u066B", ".")
+    """
+    ویرایش قیمت توسط ادمین — دقیقاً مثل منطق validate فرم کاربر
+    هر عددی مثل:
+        80
+        120.5
+        2500
+        12500
+    با اعشار 1 تا 3 رقم مجاز است.
+    """
 
-    # اگر چیز غیرعددی بود
+    # نرمال‌سازی و حذف کاراکترهای مخفی
+    s = normalize_digits(clean_text(text or "")).strip()
+    s = s.replace(",", ".").replace("\u066B", ".")
+
+    # فقط اجازه اعداد صحیح یا اعشاری
     if not re.fullmatch(r"\d+(\.\d{1,3})?", s):
         return False, 0
 
