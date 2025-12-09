@@ -74,10 +74,10 @@ def build_caption(
     ]
 
     if show_price and form.get("price_words"):
-        parts.append(f"💵 <b>قیمت:</b> {html.quote(form['price_words'])}")
+        parts.append(f"<b>قیمت:</b> {html.quote(form['price_words'])}")
 
     if show_desc and (form.get("desc") or "").strip():
-        parts.append(f"📝 <b>توضیحات:</b>\n{html.quote(form['desc'])}")
+        parts.append(f"<b>توضیحات:</b>\n{html.quote(form['desc'])}")
 
     parts.append("")
     parts.append(f"☎️ <b>تماس:</b>\nکیوان — {phone}")
