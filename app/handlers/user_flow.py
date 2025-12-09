@@ -65,12 +65,12 @@ def build_caption(
 
     parts = [
         f"🏷️ <b>{html.quote(form['category'])}</b>",
-        f"🚗 <b>نام خودرو:</b> {html.quote(form['car'])}",
-        f"📅 <b>سال ساخت:</b> {html.quote(form['year'])}",
-        f"🎨 <b>رنگ:</b> {html.quote(form['color'])}",
-        f"📈 <b>کارکرد:</b> {html.quote(form['km'])} کیلومتر",
-        f"🛡️ <b>مهلت بیمه:</b> {html.quote(ins_text)}",
-        f"⚙️ <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
+        f" <b>نام خودرو:</b> {html.quote(form['car'])}",
+        f" <b>سال ساخت:</b> {html.quote(form['year'])}",
+        f" <b>رنگ:</b> {html.quote(form['color'])}",
+        f"<b>کارکرد:</b> {html.quote(form['km'])} کیلومتر",
+        f" <b>مهلت بیمه:</b> {html.quote(ins_text)}",
+        f" <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
     ]
 
     if show_price and form.get("price_words"):
@@ -132,7 +132,7 @@ def admin_caption(
         f"بیمه/گیربکس: {html.quote(ins_text)} / {html.quote(form.get('gear') or '—')}"
     )
 
-    lines.append(f"\n🗓️ <i>{jdate}</i> • ⏱ # {number}")
+    lines.append(f"\n🗓️ <i>{jdate}</i> • ⏱ #{number}")
 
     return "\n".join(lines)
 
@@ -197,7 +197,7 @@ def validate_and_normalize(
         )
 
     # سال ساخت: 4 رقم لاتین
-    if not re.fullmatch(r"\d{4}", year):
+    if not re.fullmatch(r"1[34]\d{2}", year):
         return False, "سال ساخت باید ۴ رقم لاتین باشد.", None
 
     # رنگ فارسی
