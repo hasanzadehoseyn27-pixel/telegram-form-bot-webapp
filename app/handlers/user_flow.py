@@ -64,13 +64,13 @@ def build_caption(
     phone = "\u200e09127475355\u200e"
 
     parts = [
-        f"🏷️ <b>{html.quote(form['category'])}</b>",
-        f" <b>نام خودرو:</b> {html.quote(form['car'])}",
-        f" <b>سال ساخت:</b> {html.quote(form['year'])}",
-        f" <b>رنگ:</b> {html.quote(form['color'])}",
+        f"<b>{html.quote(form['category'])}</b>",
+        f"<b>نام خودرو:</b> {html.quote(form['car'])}",
+        f"<b>سال ساخت:</b> {html.quote(form['year'])}",
+        f"<b>رنگ:</b> {html.quote(form['color'])}",
         f"<b>کارکرد:</b> {html.quote(form['km'])} کیلومتر",
-        f" <b>مهلت بیمه:</b> {html.quote(ins_text)}",
-        f" <b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
+        f"<b>مهلت بیمه:</b> {html.quote(ins_text)}",
+        f"<b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
     ]
 
     if show_price and form.get("price_words"):
@@ -89,8 +89,6 @@ def build_caption(
     parts.append(f"📅 <i>{jdate}</i>")
 
     return "\n".join(parts)
-
-
 
 # --------------------------------------------------------------------------- #
 #                         کپشن مخصوص ادمین‌ها                                 #
