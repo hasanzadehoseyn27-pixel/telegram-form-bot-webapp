@@ -59,7 +59,6 @@
         display: flex;
         gap: 8px;
         margin-bottom: 18px;
-        flex-wrap: wrap;
       }
 
       .tab {
@@ -71,7 +70,6 @@
         text-align: center;
         cursor: pointer;
         transition: 0.2s;
-        min-width: 120px;
       }
 
       .tab.active {
@@ -127,7 +125,6 @@
       label {
         margin-bottom: 5px;
         font-size: 14px;
-        display: block;
       }
 
       .muted {
@@ -151,184 +148,40 @@
 
       button {
         flex: 1;
-        padding: 14px;
+        padding: 12px;
         background: var(--accent);
         border: none;
         border-radius: var(--radius);
         font-weight: bold;
         cursor: pointer;
-        color: white;
-        font-size: 16px;
-        transition: 0.2s;
-      }
-
-      button:hover {
-        background: #1ea34d;
-      }
-
-      button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-
-      /* آپلودر عکس */
-      .upload-area {
-        border: 2px dashed var(--border);
-        border-radius: var(--radius);
-        padding: 30px 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: 0.3s;
-        margin-top: 12px;
-        background: rgba(0, 0, 0, 0.2);
-      }
-
-      .upload-area:hover {
-        border-color: var(--accent);
-        background: rgba(34, 197, 94, 0.05);
-      }
-
-      .upload-area.dragover {
-        border-color: var(--accent);
-        background: rgba(34, 197, 94, 0.1);
-        transform: scale(1.02);
-      }
-
-      #file-input {
-        display: none;
-      }
-
-      .preview-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 12px;
-        margin-top: 16px;
-      }
-
-      .preview-item {
-        position: relative;
-        border-radius: var(--radius);
-        overflow: hidden;
-        aspect-ratio: 1;
-        border: 2px solid var(--border);
-        background: #000;
-      }
-
-      .preview-item img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .remove-btn {
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        background: var(--danger);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 28px;
-        height: 28px;
-        cursor: pointer;
-        font-size: 18px;
-        line-height: 1;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        transition: 0.2s;
-      }
-
-      .remove-btn:hover {
-        background: #dc2626;
-        transform: scale(1.1);
       }
 
       /* Dialog */
       .dialog {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.55);
         display: none;
         align-items: center;
         justify-content: center;
         padding: 16px;
-        z-index: 1000;
       }
 
       .box {
         background: var(--input-bg);
         border: 1px solid var(--border);
-        padding: 24px;
+        padding: 20px;
         border-radius: var(--radius);
         width: 100%;
         max-width: 550px;
-        max-height: 80vh;
-        overflow-y: auto;
       }
 
       .preview {
         border: 1px dashed var(--border);
-        padding: 16px;
+        padding: 12px;
         border-radius: var(--radius);
         white-space: pre-line;
-        color: var(--text);
-        background: rgba(0, 0, 0, 0.3);
-      }
-
-      .loading {
-        display: none;
-        text-align: center;
-        color: var(--accent);
-        margin-top: 12px;
-        font-size: 14px;
-      }
-
-      .photo-count {
-        display: inline-block;
-        background: var(--accent);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: bold;
-        margin-right: 8px;
-      }
-
-      /* Debug Info */
-      .debug-info {
-        background: rgba(239, 68, 68, 0.1);
-        border: 1px solid var(--danger);
-        border-radius: var(--radius);
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 11px;
-        color: #ff6b6b;
-        max-height: 300px;
-        overflow-y: auto;
-        font-family: 'Courier New', monospace;
-        line-height: 1.6;
-      }
-
-      .debug-info div {
-        margin-bottom: 4px;
-        border-bottom: 1px dotted rgba(255, 107, 107, 0.3);
-        padding-bottom: 4px;
-      }
-
-      .debug-info .success {
-        color: var(--accent);
-      }
-
-      .debug-info .error {
-        color: var(--danger);
-        font-weight: bold;
-      }
-
-      .debug-info .warning {
-        color: #fbbf24;
+        color: var(--muted);
       }
     </style>
   </head>
@@ -336,7 +189,7 @@
   <body>
     <div class="wrap">
       <div class="card">
-        <h1>🚗 بانک خودرو همکاران</h1>
+        <h1>بانک خودرو همکاران</h1>
 
         <div class="tabs">
           <div class="tab active" data-cat="فروش کارکرده">فروش کارکرده</div>
@@ -420,27 +273,8 @@
           <label style="margin-top: 12px">توضیحات (وضعیت بدنه، رنگ‌شدگی، وضعیت شاسی‌ها، وضعیت فنی، لاستیک‌ها و ...)</label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
 
-          <!-- آپلود عکس -->
-          <label style="margin-top: 16px">
-            📸 عکس‌های خودرو 
-            <span class="photo-count" id="photo-count">0/3</span>
-          </label>
-          <div class="upload-area" id="upload-area">
-            <div style="font-size: 48px; margin-bottom: 8px">📷</div>
-            <div style="font-size: 16px; font-weight: bold;">برای انتخاب عکس کلیک کنید</div>
-            <div class="muted" style="margin-top: 8px">یا فایل را به اینجا بکشید (حداکثر 3 عکس)</div>
-          </div>
-          <input type="file" id="file-input" accept="image/*" multiple />
-          
-          <div class="preview-container" id="preview-container"></div>
-          <div class="err" id="e_photos"></div>
-          <div class="loading" id="loading">⏳ در حال پردازش عکس‌ها...</div>
-
-          <!-- Debug Info -->
-          <div class="debug-info" id="debug-info"></div>
-
           <div class="row">
-            <button id="submit">📤 ارسال و انتشار آگهی</button>
+            <button id="submit">ارسال فرم</button>
           </div>
         </div>
       </div>
@@ -449,10 +283,10 @@
     <!-- Dialog -->
     <div id="dlg" class="dialog">
       <div class="box">
-        <h3 style="margin-top: 0;">پیش‌نمایش آگهی</h3>
+        <h3>پیش‌نمایش</h3>
         <div id="preview" class="preview"></div>
 
-        <div class="row" style="margin-top: 16px">
+        <div class="row" style="margin-top: 12px">
           <button
             id="cancel"
             style="
@@ -463,7 +297,7 @@
           >
             برگشت
           </button>
-          <button id="confirm">✅ تایید و ارسال نهایی</button>
+          <button id="confirm">تایید و ارسال</button>
         </div>
       </div>
     </div>
@@ -474,22 +308,6 @@
       tg.ready();
       const $ = (s) => document.querySelector(s);
 
-      // ✅ Debug logging
-      let logCount = 0;
-      function debugLog(message, type = 'info') {
-        logCount++;
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        
-        const debugInfo = $("#debug-info");
-        const div = document.createElement('div');
-        div.className = type;
-        div.textContent = `[${logCount}] ${message}`;
-        debugInfo.appendChild(div);
-        debugInfo.scrollTop = debugInfo.scrollHeight;
-      }
-
-      debugLog(`WebApp initialized - Platform: ${tg.platform}, Version: ${tg.version}`, 'success');
-
       /* CATEGORY */
       let category = "فروش کارکرده";
       document.querySelectorAll(".tab").forEach((t) => {
@@ -499,185 +317,21 @@
             .forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
-          debugLog(`Category: ${category}`);
         };
       });
 
-      /* Photo Upload */
-      const MAX_PHOTOS = 3;
-      let photos = [];
-
-      const uploadArea = $("#upload-area");
-      const fileInput = $("#file-input");
-      const previewContainer = $("#preview-container");
-      const photoCount = $("#photo-count");
-
-      function updatePhotoCount() {
-        photoCount.textContent = `${photos.length}/3`;
-      }
-
-      uploadArea.onclick = () => {
-        if (photos.length >= MAX_PHOTOS) {
-          setErr("photos", `حداکثر ${MAX_PHOTOS} عکس مجاز است.`);
-          return;
-        }
-        fileInput.click();
-      };
-
-      uploadArea.ondragover = (e) => {
-        e.preventDefault();
-        if (photos.length < MAX_PHOTOS) {
-          uploadArea.classList.add("dragover");
-        }
-      };
-
-      uploadArea.ondragleave = () => {
-        uploadArea.classList.remove("dragover");
-      };
-
-      uploadArea.ondrop = (e) => {
-        e.preventDefault();
-        uploadArea.classList.remove("dragover");
-        handleFiles(e.dataTransfer.files);
-      };
-
-      fileInput.onchange = (e) => {
-        handleFiles(e.target.files);
-      };
-
-      // ✅ فشرده‌سازی عکس
-      function compressImage(base64, maxWidth = 500, quality = 0.6) {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
-
-            const compressed = canvas.toDataURL('image/jpeg', quality);
-            const originalSize = (base64.length / 1024).toFixed(1);
-            const compressedSize = (compressed.length / 1024).toFixed(1);
-            debugLog(`Image: ${img.width}x${img.height} → ${width}x${height} | ${originalSize}KB → ${compressedSize}KB`, 'success');
-            resolve(compressed);
-          };
-          img.onerror = () => {
-            debugLog("Image load error!", 'error');
-            resolve(base64);
-          };
-          img.src = base64;
-        });
-      }
-
-      // ✅ پردازش فایل‌ها
-      async function handleFiles(files) {
-        setErr("photos", "");
-        
-        const remaining = MAX_PHOTOS - photos.length;
-        if (remaining <= 0) {
-          setErr("photos", `حداکثر ${MAX_PHOTOS} عکس مجاز است.`);
-          debugLog(`Max photos reached!`, 'warning');
-          return;
-        }
-
-        const filesToProcess = Array.from(files).slice(0, remaining);
-        
-        if (filesToProcess.length === 0) return;
-
-        $("#loading").style.display = "block";
-        debugLog(`Processing ${filesToProcess.length} file(s)...`);
-
-        let processed = 0;
-        
-        for (const file of filesToProcess) {
-          if (!file.type.startsWith("image/")) {
-            setErr("photos", "فقط فایل‌های تصویری مجاز هستند.");
-            debugLog(`Invalid file type: ${file.type}`, 'error');
-            processed++;
-            if (processed === filesToProcess.length) {
-              $("#loading").style.display = "none";
-            }
-            continue;
-          }
-
-          try {
-            debugLog(`Reading: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(1)}KB)`);
-
-            const base64 = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = (e) => resolve(e.target.result);
-              reader.onerror = reject;
-              reader.readAsDataURL(file);
-            });
-
-            const compressed = await compressImage(base64, 500, 0.6);
-            photos.push(compressed);
-            
-          } catch (error) {
-            debugLog(`Error: ${error.message}`, 'error');
-            console.error("خطا در پردازش عکس:", error);
-          }
-
-          processed++;
-          if (processed === filesToProcess.length) {
-            renderPreviews();
-            updatePhotoCount();
-            $("#loading").style.display = "none";
-            debugLog(`Total photos: ${photos.length}`, 'success');
-          }
-        }
-
-        fileInput.value = "";
-      }
-
-      function renderPreviews() {
-        previewContainer.innerHTML = "";
-        photos.forEach((base64, index) => {
-          const div = document.createElement("div");
-          div.className = "preview-item";
-          
-          const img = document.createElement("img");
-          img.src = base64;
-          
-          const btn = document.createElement("button");
-          btn.className = "remove-btn";
-          btn.textContent = "×";
-          btn.onclick = (e) => {
-            e.stopPropagation();
-            photos.splice(index, 1);
-            renderPreviews();
-            updatePhotoCount();
-            setErr("photos", "");
-            debugLog(`Photo removed. Remaining: ${photos.length}`, 'warning');
-          };
-          
-          div.appendChild(img);
-          div.appendChild(btn);
-          previewContainer.appendChild(div);
-        });
-      }
-
+      /* helpers خطا */
       function setErr(id, msg) {
-        const el = $("#e_" + id);
-        if (el) el.textContent = msg || "";
+        $("#e_" + id).textContent = msg || "";
       }
 
       function clearErrors() {
-        ["car", "year", "color", "km", "ins", "phone", "price", "photos"].forEach((k) =>
+        ["car", "year", "color", "km", "ins", "phone", "price"].forEach((k) =>
           setErr(k, "")
         );
       }
 
+      /* تبدیل ارقام فارسی/عربی به لاتین */
       function faToEnDigits(str) {
         if (!str) return "";
         const fa = "۰۱۲۳۴۵۶۷۸۹";
@@ -693,6 +347,7 @@
         return out;
       }
 
+      /* تبدیل میلیون → تومان خوانا */
       function formatFromMillion(input) {
         if (!input) return "";
         let val = parseFloat(faToEnDigits(String(input)).replace(",", "."));
@@ -713,7 +368,7 @@
           toman %= 1_000_000;
         }
         if (toman >= 1_000) {
-          let k = Math.floor(toman / 1000);
+          let k = Math.floor(toman / 1_000);
           parts.push(k + " هزار");
         }
         return parts.join(" و ") + " تومان";
@@ -730,15 +385,18 @@
         }
       }
 
+      /* ورودی سال - قبول فارسی و انگلیسی */
       $("#year").addEventListener("input", () => {
         let v = $("#year").value;
-        v = faToEnDigits(v);
-        v = v.replace(/[^0-9]/g, "");
+        // نگه داشتن فارسی/لاتین برای نمایش
+        // فقط حذف کاراکترهای غیرعددی
+        v = v.replace(/[^\u06F0-\u06F9\u0660-\u06690-9]/g, "");
         if (v.length > 4) v = v.slice(0, 4);
         $("#year").value = v;
         setErr("year", "");
       });
 
+      /* ورودی قیمت */
       $("#price").addEventListener("input", () => {
         let v = $("#price").value;
         v = faToEnDigits(v);
@@ -757,6 +415,7 @@
         updatePriceHint();
       });
 
+      /* فقط ارقام لاتین در شماره تماس */
       $("#phone").addEventListener("input", () => {
         let v = faToEnDigits($("#phone").value);
         v = v.replace(/[^0-9]/g, "");
@@ -764,6 +423,7 @@
         setErr("phone", "");
       });
 
+      /* کارکرد */
       $("#km").addEventListener("input", () => {
         let v = faToEnDigits($("#km").value);
         v = v.replace(/[^0-9]/g, "");
@@ -771,6 +431,7 @@
         setErr("km", "");
       });
 
+      /* بیمه */
       $("#insurance").addEventListener("input", () => {
         let v = faToEnDigits($("#insurance").value);
         v = v.replace(/[^0-9]/g, "");
@@ -778,16 +439,19 @@
         setErr("ins", "");
       });
 
+      /* اعتبارسنجی */
       function validate(p) {
         clearErrors();
         let ok = true;
 
+        // نرمال‌سازی ارقام
         p.year = faToEnDigits(p.year);
         p.km = faToEnDigits(p.km);
         p.insurance = faToEnDigits(p.insurance);
         p.phone = faToEnDigits(p.phone);
         p.price = faToEnDigits(p.price);
 
+        // نام خودرو
         if (
           !/^[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}$/.test(p.car) ||
           /[0-9\u06F0-\u06F9\u0660-\u0669]{5,}/.test(p.car)
@@ -796,31 +460,37 @@
           ok = false;
         }
 
+        // سال: 4 رقم، شمسی (1300-1430) یا میلادی (2000-2029)
         if (!/^(1[34]\d{2}|20[012]\d)$/.test(p.year)) {
-          setErr("year", "سال ساخت باید ۴ رقم باشد.");
+          setErr("year", "سال ساخت باید ۴ رقم باشد (مثلاً 1403 یا 2024).");
           ok = false;
         }
 
+        // رنگ
         if (!/^[آ-ی\s]{1,12}$/.test(p.color)) {
           setErr("color", "رنگ فقط حروف فارسی باشد.");
           ok = false;
         }
 
+        // کارکرد
         if (!/^[0-9]{1,6}$/.test(p.km)) {
           setErr("km", "کارکرد نامعتبر است.");
           ok = false;
         }
 
+        // بیمه
         if (p.insurance && !/^[0-9]{1,2}$/.test(p.insurance)) {
           setErr("ins", "مهلت بیمه نامعتبر است.");
           ok = false;
         }
 
+        // شماره تماس
         if (!/^09[0-9]{9}$/.test(p.phone || "")) {
           setErr("phone", "شماره تماس باید ۱۱ رقم باشد.");
           ok = false;
         }
 
+        // قیمت
         if (!p.price || isNaN(parseFloat(p.price))) {
           setErr("price", "قیمت را وارد کنید.");
           ok = false;
@@ -830,9 +500,8 @@
         return ok;
       }
 
+      /* Submit */
       $("#submit").onclick = () => {
-        debugLog("Submit clicked", 'warning');
-        
         const data = {
           category,
           car: $("#car").value.trim(),
@@ -844,42 +513,26 @@
           phone: $("#phone").value.trim(),
           price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
-          photos: photos,
         };
 
-        debugLog(`Car: ${data.car}, Photos: ${photos.length}`);
+        if (!validate(data)) return;
 
-        if (!validate(data)) {
-          debugLog("Validation failed!", 'error');
-          return;
-        }
-
-        const previewText = `دسته: ${data.category}
+        $("#preview").textContent = `
+دسته: ${data.category}
 نام خودرو: ${data.car}
 سال: ${data.year}
 رنگ: ${data.color}
-کارکرد: ${data.km} کیلومتر
+کارکرد: ${data.km}
 قیمت: ${formatFromMillion(data.price)}
 شماره تماس: ${data.phone}
-${data.gear ? "گیربکس: " + data.gear : ""}
-${data.insurance ? "بیمه: " + data.insurance + " ماه" : ""}
-${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
+${data.desc ? "توضیحات:\n" + data.desc : ""}`.trim();
 
-📸 تعداد عکس: ${photos.length}`;
-
-        $("#preview").textContent = previewText;
         $("#dlg").style.display = "flex";
-        debugLog("Preview opened", 'success');
       };
 
-      $("#cancel").onclick = () => {
-        $("#dlg").style.display = "none";
-        debugLog("Dialog cancelled");
-      };
+      $("#cancel").onclick = () => ($("#dlg").style.display = "none");
 
       $("#confirm").onclick = () => {
-        debugLog("Confirm clicked!", 'warning');
-        
         const payload = {
           category,
           car: $("#car").value.trim(),
@@ -891,35 +544,13 @@ ${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
           phone: $("#phone").value.trim(),
           million_price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
-          photos: photos,
         };
 
-        const payloadStr = JSON.stringify(payload);
-        const payloadSize = (payloadStr.length / 1024).toFixed(2);
-        
-        debugLog(`Payload size: ${payloadSize} KB`, 'warning');
-        
-        if (payloadStr.length > 100000) {
-          alert(`❌ حجم داده زیاد: ${payloadSize} KB\nلطفاً عکس کمتری انتخاب کنید.`);
-          debugLog(`Payload TOO LARGE: ${payloadSize} KB`, 'error');
-          return;
-        }
-
-        try {
-          debugLog("Sending to Telegram...", 'warning');
-          tg.sendData(payloadStr);
-          debugLog("Data sent successfully!", 'success');
-          tg.close();
-        } catch (error) {
-          debugLog(`SEND ERROR: ${error.message}`, 'error');
-          console.error("خطا:", error);
-          alert("❌ خطا: " + error.message);
-        }
+        tg.sendData(JSON.stringify(payload));
+        tg.close();
       };
 
       updatePriceHint();
-      updatePhotoCount();
-      debugLog("Page loaded successfully!", 'success');
     </script>
   </body>
 </html>
