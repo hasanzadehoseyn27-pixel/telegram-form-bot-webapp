@@ -1,23 +1,23 @@
 from __future__ import annotations
 import json
 import re
+import base64
+import io
 from uuid import uuid4
 
 from aiogram import Router, F, html, types, Bot
 from aiogram.utils.media_group import MediaGroupBuilder
+from aiogram.types import BufferedInputFile
 
 from ..config import SETTINGS
-from ..keyboards import user_finish_kb, admin_review_kb
+from ..keyboards import admin_review_kb
 from ..storage import (
     next_daily_number,
     list_admins,
-    is_admin,
-    is_owner,
 )
 from .state import (
     MAX_PHOTOS,
     PENDING,
-    PHOTO_WAIT,
 )
 from .membership import _user_is_member, build_join_kb
 from .common import (
@@ -28,10 +28,10 @@ from .common import (
 
 router = Router()
 
+
 # --------------------------------------------------------------------------- #
 #                         توابع کمکی محلی                                     #
 # --------------------------------------------------------------------------- #
-
 
 def normalize_digits(s: str) -> str:
     """
@@ -51,7 +51,6 @@ def normalize_digits(s: str) -> str:
 #                         کپشن اصلی (کانال مقصد)                             #
 # --------------------------------------------------------------------------- #
 
-
 def build_caption(
     form: dict,
     number: int,
@@ -61,39 +60,48 @@ def build_caption(
     show_desc: bool,
 ) -> str:
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
-    phone = "\u200e09127475355\u200e"
+    phone = "\u200e09121513089\u200e"
+    contact_name = "حاجی اسماعیلی"
+
+    # ✅ راست‌چین کردن سال
+    year_rtl = f"\u200f{form['year']}\u200f"
 
     parts = [
-        f"<b>{html.quote(form['category'])}</b>",
-        f"<b>نام خودرو:</b> {html.quote(form['car'])}",
-        f"<b>سال ساخت:</b> {html.quote(form['year'])}",
-        f"<b>رنگ:</b> {html.quote(form['color'])}",
-        f"<b>کارکرد:</b> {html.quote(form['km'])} کیلومتر",
-        f"<b>مهلت بیمه:</b> {html.quote(ins_text)}",
-        f"<b>گیربکس:</b> {html.quote(form.get('gear') or '—')}",
+        f"🏷 {form['category']}",
+        form['car'],
+        year_rtl,
+        form['color'],
     ]
 
+    # ✅ قیمت زیر رنگ
     if show_price and form.get("price_words"):
-        parts.append(f"<b>قیمت:</b> {html.quote(form['price_words'])}")
+        parts.append(f"قیمت: {form['price_words']}")
 
+    # بقیه اطلاعات
+    parts.append(f"کارکرد: {form['km']} کیلومتر")
+    parts.append(f"مهلت بیمه: {ins_text}")
+    parts.append(f"گیربکس: {form.get('gear') or '—'}")
+
+    # ✅ توضیحات
     if show_desc and (form.get("desc") or "").strip():
-        parts.append(f"<b>توضیحات:</b>\n{html.quote(form['desc'])}")
+        parts.append(f"\n{form['desc']}")
 
     parts.append("")
-    parts.append(f"☎️ <b>تماس:</b>\nکیوان — {phone}")
-
+    parts.append(f"☎️ تماس:")
+    parts.append(f"{contact_name} - {phone}")
+    
     parts.append("───────────────────")
-
-    # 🔖 شماره آگهی و تاریخ زیر هم
-    parts.append(f"🔖 <b>آگهی شماره #{number}</b>")
-    parts.append(f"📅 <i>{jdate}</i>")
+    
+    parts.append(f"🔖 آگهی شماره #{number}")
+    parts.append(f"📅 {jdate}")
 
     return "\n".join(parts)
+
+
 
 # --------------------------------------------------------------------------- #
 #                         کپشن مخصوص ادمین‌ها                                 #
 # --------------------------------------------------------------------------- #
-
 
 def admin_caption(
     form: dict,
@@ -108,7 +116,7 @@ def admin_caption(
 
     lines: list[str] = []
 
-    # اطلاعات تماس فقط برای owner
+    # اطلاعات تماس برای همه ادمین‌ها
     if include_contact:
         lines.append(f"📞 {html.quote(phone or '—')}")
         uname = (username or "").lstrip("@")
@@ -139,7 +147,6 @@ def admin_caption(
 #                         اعتبارسنجی و نرمال‌سازی فرم                         #
 # --------------------------------------------------------------------------- #
 
-
 def validate_and_normalize(
     payload: dict,
 ) -> tuple[bool, str | None, dict | None]:
@@ -153,27 +160,28 @@ def validate_and_normalize(
     desc = (payload.get("desc") or "").strip()
     phone = (payload.get("phone") or "").strip()
 
-    # قیمت از WebApp (نام فیلد ممکن است price یا million_price باشد)
+    # قیمت از WebApp
     price_raw = str(
         payload.get("million_price")
         or payload.get("price")
         or ""
     ).strip()
 
-    # --- نرمال‌سازی ارقام (فارسی/عربی → لاتین) برای فیلدهای عددی --- #
+    # --- نرمال‌سازی ارقام (فارسی/عربی → لاتین) ---
     year = normalize_digits(year)
     km = normalize_digits(km)
     ins = normalize_digits(ins)
     phone = normalize_digits(phone)
     price_raw = normalize_digits(price_raw)
+    
     # یکسان‌سازی ممیز اعشاری
     price_raw = (
         price_raw.replace(",", ".")
-        .replace("\u066B", ".")  # Arabic decimal separator
-        .replace("\u066C", ".")  # Arabic thousands separator (اگر استفاده شود)
+        .replace("\u066B", ".")
+        .replace("\u066C", ".")
     )
 
-    # فقط در فیلدهایی که «کاملاً عددی» هستند، بعد از نرمال‌سازی، ارقام فارسی نباید بماند
+    # بررسی باقی‌مانده ارقام فارسی
     if (
         contains_persian_digits(year)
         or contains_persian_digits(km)
@@ -181,26 +189,25 @@ def validate_and_normalize(
         or contains_persian_digits(phone)
         or contains_persian_digits(price_raw)
     ):
-        return False, "لطفاً فقط از اعداد لاتین (0-9) در اعداد استفاده کنید.", None
+        return False, "لطفاً فقط از اعداد لاتین (0-9) استفاده کنید.", None
 
-    # نام خودرو: فارسی + انگلیسی + عدد (فارسی/لاتین) + فاصله
-    # محدود به ۲ تا ۴۰ کاراکتر، بدون سایر علائم
+    # نام خودرو
     if not re.fullmatch(
         r"[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}", car
     ):
         return (
             False,
-            "نام خودرو نامعتبر است (فقط حروف فارسی/انگلیسی، عدد و فاصله، بین ۲ تا ۴۰ کاراکتر).",
+            "نام خودرو نامعتبر است.",
             None,
         )
 
-    # سال ساخت: 4 رقم لاتین
-    if not re.fullmatch(r"1[34]\d{2}", year):
-        return False, "سال ساخت باید ۴ رقم لاتین باشد.", None
+    # سال ساخت: 4 رقم (شمسی 13xx-14xx یا میلادی 20xx)
+    if not re.fullmatch(r"(1[34]\d{2}|20[012]\d)", year):
+        return False, "سال ساخت باید ۴ رقم باشد (مثلاً ۱۴۰۱ یا 2018).", None
 
     # رنگ فارسی
     if not re.fullmatch(r"[آ-ی\s]{1,12}", color):
-        return False, "رنگ باید حروف فارسی (حداکثر ۱۲ کاراکتر) باشد.", None
+        return False, "رنگ باید حروف فارسی باشد.", None
 
     # کارکرد
     if not re.fullmatch(r"\d{1,6}", km):
@@ -208,18 +215,17 @@ def validate_and_normalize(
 
     # بیمه
     if ins and not re.fullmatch(r"\d{1,2}", ins):
-        return False, "مهلت بیمه باید بین 0 تا 99 ماه باشد.", None
+        return False, "مهلت بیمه نامعتبر است.", None
 
     # شماره تماس
     if not re.fullmatch(r"09\d{9}", phone):
         return False, "شماره تماس باید با 09 شروع شده و ۱۱ رقم باشد.", None
 
-    # ------------------------ قیمت بر اساس میلیون تومان ----------------------
-    # مثل 80 ، 120.5 ، 1500.7
+    # قیمت
     if not re.fullmatch(r"\d+(\.\d{1,3})?", price_raw):
         return (
             False,
-            "فرمت قیمت صحیح نیست. مثال: 120.5 (معادل 120 میلیون و 500 هزار).",
+            "فرمت قیمت صحیح نیست.",
             None,
         )
 
@@ -228,11 +234,11 @@ def validate_and_normalize(
     except ValueError:
         return (
             False,
-            "قیمت نامعتبر است. مثال: 80 یا 120.5",
+            "قیمت نامعتبر است.",
             None,
         )
 
-    toman = int(million_val * 1_000_000)  # تبدیل میلیون → تومان
+    toman = int(million_val * 1_000_000)
     price_text = price_words(toman)
 
     form = {
@@ -255,86 +261,8 @@ def validate_and_normalize(
 
 
 # --------------------------------------------------------------------------- #
-#                         دریافت فرم WebApp                                   #
-# --------------------------------------------------------------------------- #
-
-
-@router.message(F.web_app_data)
-async def on_webapp_data(message: types.Message):
-    # عضویت اجباری
-    if not await _user_is_member(message.bot, message.from_user.id):
-        await message.answer(
-            "⛔ ابتدا در کانال‌های موردنیاز عضو شوید، سپس دوباره اقدام کنید.",
-            reply_markup=await build_join_kb(message.bot),
-        )
-        return
-
-    # داده‌ی WebApp
-    try:
-        data = json.loads(message.web_app_data.data or "{}")
-    except Exception:
-        data = {}
-
-    ok, err, form = validate_and_normalize(data)
-    if not ok:
-        await message.answer(err or "اطلاعات نامعتبر است.")
-        return
-
-    form["username"] = message.from_user.username or ""
-
-    token = uuid4().hex
-    PENDING[token] = {
-        "form": form,
-        "user_id": message.from_user.id,
-        "admin_msgs": [],
-    }
-    PHOTO_WAIT[message.from_user.id] = {"token": token, "remain": MAX_PHOTOS}
-
-    await message.answer(
-        "فرم شما ذخیره شد ✅\n"
-        "اکنون تا ۵ عکس ارسال کنید. هر زمان آماده بودید، «📣 انتشار در گروه» را بزنید.",
-        reply_markup=user_finish_kb(token),
-    )
-
-
-# --------------------------------------------------------------------------- #
-#                         دریافت عکس‌ها                                       #
-# --------------------------------------------------------------------------- #
-
-
-@router.message(F.photo)
-async def on_photo(message: types.Message):
-    sess = PHOTO_WAIT.get(message.from_user.id)
-    if not sess:
-        return
-
-    if "remain" not in sess or not isinstance(sess["remain"], int):
-        sess["remain"] = MAX_PHOTOS
-
-    if sess["remain"] <= 0:
-        await message.reply(
-            "حداکثر ۵ عکس مجاز است. سپس «📣 انتشار در گروه» را بزنید.",
-            reply_markup=user_finish_kb(sess["token"]),
-        )
-        return
-
-    file_id = message.photo[-1].file_id
-    token = sess["token"]
-
-    PENDING[token]["form"]["photos"].append(file_id)
-    sess["remain"] -= 1
-    left = max(sess["remain"], 0)
-
-    await message.reply(
-        f"عکس ثبت شد. باقی‌مانده: {left}",
-        reply_markup=user_finish_kb(token),
-    )
-
-
-# --------------------------------------------------------------------------- #
 #                         انتشار در کانال مقصد                                #
 # --------------------------------------------------------------------------- #
-
 
 async def publish_to_destination(
     bot: Bot,
@@ -388,7 +316,6 @@ async def publish_to_destination(
 #                         ارسال برای ادمین‌ها                                 #
 # --------------------------------------------------------------------------- #
 
-
 async def send_review_to_admins(
     bot: Bot,
     form: dict,
@@ -401,15 +328,13 @@ async def send_review_to_admins(
 
     for admin_id in admins:
         try:
-            include_contact = is_owner(admin_id)
-
             cap = admin_caption(
                 form,
                 grp["number"],
                 grp["jdate"],
                 phone=form.get("phone"),
                 username=form.get("username"),
-                include_contact=include_contact,
+                include_contact=True,  # ✅ همه ادمین‌ها می‌بینن
             )
 
             if photos:
@@ -442,45 +367,89 @@ async def send_review_to_admins(
 
 
 # --------------------------------------------------------------------------- #
-#                         اتمام کاربر (دکمه انتشار)                           #
+#                         دریافت فرم WebApp                                   #
 # --------------------------------------------------------------------------- #
 
-
-@router.callback_query(F.data.startswith("finish:"))
-async def cb_finish(call: types.CallbackQuery):
-    token = call.data.split(":", 1)[1]
-
-    data = PENDING.get(token)
-    if not data or data["user_id"] != call.from_user.id:
-        await call.answer("جلسه یافت نشد.", show_alert=True)
+@router.message(F.web_app_data)
+async def on_webapp_data(message: types.Message):
+    # عضویت اجباری
+    if not await _user_is_member(message.bot, message.from_user.id):
+        await message.answer(
+            "⛔ ابتدا در کانال‌های موردنیاز عضو شوید، سپس دوباره اقدام کنید.",
+            reply_markup=await build_join_kb(message.bot),
+        )
         return
 
+    # داده‌ی WebApp
+    try:
+        data = json.loads(message.web_app_data.data or "{}")
+    except Exception:
+        data = {}
+
+    ok, err, form = validate_and_normalize(data)
+    if not ok:
+        await message.answer(err or "اطلاعات نامعتبر است.")
+        return
+
+    form["username"] = message.from_user.username or ""
+
+    # ✅ پردازش عکس‌های base64
+    photos_base64 = data.get("photos", [])
+    photo_file_ids = []
+
+    if photos_base64:
+        await message.answer("⏳ در حال پردازش عکس‌ها...")
+
+        for idx, base64_str in enumerate(photos_base64[:MAX_PHOTOS]):
+            try:
+                # حذف header داده base64
+                if "," in base64_str:
+                    base64_str = base64_str.split(",", 1)[1]
+
+                # تبدیل base64 به bytes
+                image_bytes = base64.b64decode(base64_str)
+
+                # آپلود به تلگرام
+                photo_file = BufferedInputFile(image_bytes, filename=f"photo_{idx+1}.jpg")
+                sent_msg = await message.answer_photo(photo_file)
+
+                # ذخیره file_id و حذف پیام
+                photo_file_ids.append(sent_msg.photo[-1].file_id)
+                await sent_msg.delete()
+
+            except Exception as e:
+                print(f"❌ خطا در پردازش عکس {idx+1}: {e}")
+                continue
+
+    form["photos"] = photo_file_ids
+
+    # ✅ انتشار مستقیم (بدون دکمه انتشار)
     if not SETTINGS.TARGET_GROUP_ID:
-        await call.answer("کانال مقصد در تنظیمات تعریف نشده.", show_alert=True)
+        await message.answer("❌ کانال مقصد در تنظیمات تعریف نشده.")
         return
 
-    form = data["form"]
+    token = uuid4().hex
 
-    # انتشار در کانال اصلی (.env)
+    # انتشار در کانال اصلی
     grp = await publish_to_destination(
-        call.bot,
+        message.bot,
         form,
         show_price=False,
         show_desc=False,
     )
 
-    PENDING[token]["grp"] = grp
-    PENDING[token]["needs"] = {"price": False, "desc": True}
+    PENDING[token] = {
+        "form": form,
+        "user_id": message.from_user.id,
+        "admin_msgs": [],
+        "grp": grp,
+        "needs": {"price": False, "desc": True}
+    }
 
     # ارسال برای ادمین‌ها
-    photos = form.get("photos") or []
-    await send_review_to_admins(call.bot, form, token, photos, grp)
+    await send_review_to_admins(message.bot, form, token, photo_file_ids, grp)
 
-    PHOTO_WAIT.pop(call.from_user.id, None)
-
-    try:
-        await call.message.edit_text("ثبت شد ✅ و برای بررسی به ادمین‌ها ارسال شد.")
-    except Exception:
-        pass
-
-    await call.answer()
+    await message.answer(
+        "✅ آگهی شما ثبت و منتشر شد!\n"
+        "در حال بررسی توسط ادمین‌ها..."
+    )
