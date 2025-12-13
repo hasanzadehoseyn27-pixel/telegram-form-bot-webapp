@@ -893,7 +893,7 @@ ${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
         debugLog(`Photos count: ${photos.length}`);
         
         // محدودیت تلگرام معمولاً 64KB است
-        if (payloadStr.length > 60000) {
+        if (payloadStr.length > 100000) {
           alert(`❌ حجم داده خیلی زیاد است (${payloadSize} KB).\nلطفاً عکس‌های کمتری انتخاب کنید.`);
           debugLog("Payload too large!", payloadSize);
           return;
