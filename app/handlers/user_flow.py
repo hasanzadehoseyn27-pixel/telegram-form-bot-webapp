@@ -291,7 +291,7 @@ async def on_webapp_data(message: types.Message):
     
     await message.answer(
         "فرم شما ذخیره شد ✅\n"
-        "اکنون تا ۵ عکس ارسال کنید. هر زمان آماده بودید، «✅ تایید نهایی» را بزنید.",
+        "اکنون تا 3 عکس ارسال کنید. هر زمان آماده بودید، «✅ تایید نهایی» را بزنید.",
         reply_markup=user_finish_kb(token),
     )
 
