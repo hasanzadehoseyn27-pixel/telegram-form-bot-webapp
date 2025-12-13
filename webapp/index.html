@@ -296,17 +296,6 @@
         font-weight: bold;
         margin-right: 8px;
       }
-
-      .debug-info {
-        background: rgba(239, 68, 68, 0.1);
-        border: 1px solid var(--danger);
-        border-radius: var(--radius);
-        padding: 12px;
-        margin-top: 12px;
-        font-size: 12px;
-        color: var(--danger);
-        display: none;
-      }
     </style>
   </head>
 
@@ -413,9 +402,6 @@
           <div class="err" id="e_photos"></div>
           <div class="loading" id="loading">⏳ در حال پردازش عکس‌ها...</div>
 
-          <!-- Debug Info -->
-          <div class="debug-info" id="debug-info"></div>
-
           <div class="row">
             <button id="submit">📤 ارسال و انتشار آگهی</button>
           </div>
@@ -451,15 +437,9 @@
       tg.ready();
       const $ = (s) => document.querySelector(s);
 
-      // ✅ Debug logging
+      // ✅ Debug logging - فقط Console
       function debugLog(message, data = null) {
         console.log(`[DEBUG] ${message}`, data || '');
-        const debugInfo = $("#debug-info");
-        debugInfo.style.display = "block";
-        debugInfo.innerHTML += `<div>${message}</div>`;
-        if (data) {
-          debugInfo.innerHTML += `<pre>${JSON.stringify(data, null, 2).substring(0, 200)}...</pre>`;
-        }
       }
 
       debugLog("WebApp initialized", { 
@@ -523,8 +503,8 @@
         handleFiles(e.target.files);
       };
 
-      // ✅ تابع فشرده‌سازی عکس
-      function compressImage(base64, maxWidth = 1200, quality = 0.8) {
+      // ✅ تابع فشرده‌سازی عکس - 500px و کیفیت 60%
+      function compressImage(base64, maxWidth = 500, quality = 0.6) {
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
@@ -546,18 +526,18 @@
 
             // تبدیل به base64 با کیفیت پایین‌تر
             const compressed = canvas.toDataURL('image/jpeg', quality);
-            debugLog(`Image compressed: ${img.width}x${img.height} → ${width}x${height}`);
+            debugLog(`Image compressed: ${img.width}x${img.height} → ${width}x${height}, Size: ${(compressed.length / 1024).toFixed(1)} KB`);
             resolve(compressed);
           };
           img.onerror = () => {
             debugLog("Image load error");
-            resolve(base64); // اگر خطا داد، همون base64 اصلی رو برگردون
+            resolve(base64);
           };
           img.src = base64;
         });
       }
 
-      // ✅ پردازش فایل‌ها با فشرده‌سازی
+      // ✅ پردازش فایل‌ها با فشرده‌سازی - قبول همه فرمت‌های تصویری
       async function handleFiles(files) {
         setErr("photos", "");
         
@@ -577,14 +557,18 @@
         let processed = 0;
         
         for (const file of filesToProcess) {
+          // ✅ قبول همه فرمت‌های تصویری: jpg, jpeg, png, gif, webp, bmp
           if (!file.type.startsWith("image/")) {
             setErr("photos", "فقط فایل‌های تصویری مجاز هستند.");
             processed++;
+            if (processed === filesToProcess.length) {
+              $("#loading").style.display = "none";
+            }
             continue;
           }
 
           try {
-            debugLog(`Reading file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+            debugLog(`Reading file: ${file.name} (${file.type}, ${(file.size / 1024).toFixed(1)} KB)`);
 
             // خواندن فایل
             const base64 = await new Promise((resolve, reject) => {
@@ -594,8 +578,8 @@
               reader.readAsDataURL(file);
             });
 
-            // فشرده‌سازی
-            const compressed = await compressImage(base64, 1000, 0.8);
+            // ✅ فشرده‌سازی: 500px، کیفیت 60%
+            const compressed = await compressImage(base64, 500, 0.6);
             const compressedSize = (compressed.length / 1024).toFixed(1);
             debugLog(`Compressed to ${compressedSize} KB`);
             
@@ -892,7 +876,7 @@ ${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
         debugLog(`Payload size: ${payloadSize} KB`);
         debugLog(`Photos count: ${photos.length}`);
         
-        // محدودیت تلگرام معمولاً 64KB است
+        // ✅ محدودیت 100KB
         if (payloadStr.length > 100000) {
           alert(`❌ حجم داده خیلی زیاد است (${payloadSize} KB).\nلطفاً عکس‌های کمتری انتخاب کنید.`);
           debugLog("Payload too large!", payloadSize);
