@@ -56,29 +56,11 @@ def to_persian_digits(s: str) -> str:
     return "".join(persian[int(c)] if c.isdigit() else c for c in s)
 
 
-def convert_year_format(year_latin: str) -> str:
+def to_persian_year(year_str: str) -> str:
     """
-    تبدیل سال به فرمت فارسی/انگلیسی.
-    مثال: 1403 → ۱۴۰۳ / 2024
+    تبدیل سال به فارسی.
     """
-    year_int = int(year_latin)
-    
-    # شمسی
-    if 1300 <= year_int <= 1500:
-        persian_year = to_persian_digits(year_latin)
-        # تبدیل تقریبی به میلادی
-        gregorian = year_int + 621
-        return f"{persian_year} / {gregorian}"
-    
-    # میلادی
-    elif 2000 <= year_int <= 2099:
-        # تبدیل تقریبی به شمسی
-        shamsi = year_int - 621
-        persian_shamsi = to_persian_digits(str(shamsi))
-        return f"{persian_shamsi} / {year_latin}"
-    
-    # پیش‌فرض
-    return to_persian_digits(year_latin)
+    return to_persian_digits(year_str)
 
 
 # --------------------------------------------------------------------------- #
@@ -99,13 +81,13 @@ def build_caption(
     contact_name = "حاجی اسماعیلی"
     contact_phone = "09121513089"
     
-    # تبدیل سال
-    year_display = convert_year_format(form['year'])
+    # سال: فقط به فارسی تبدیل
+    year_display = to_persian_year(form['year'])
     
     parts = [
         f"🏷 <b>{html.quote(form['category'])}</b>",
         f"{html.quote(form['car'])}",
-        f"{year_display}",
+        f"\u200F{year_display}\u200F",  # راست‌چین
         f"{html.quote(form['color'])}",
     ]
     
@@ -146,7 +128,7 @@ def admin_caption(
     username: str | None = None,
 ) -> str:
     """
-    حالا همه ادمین‌ها شماره و یوزرنیم رو می‌بینن
+    همه ادمین‌ها شماره و یوزرنیم رو می‌بینن
     """
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
     
@@ -495,3 +477,129 @@ async def cb_finish(call: types.CallbackQuery):
         pass
     
     await call.answer()
+
+
+# --------------------------------------------------------------------------- #
+#                  دکمه‌های ادمین: ویرایش قیمت و توضیحات                      #
+# --------------------------------------------------------------------------- #
+
+@router.callback_query(F.data.startswith("admin_edit_price:"))
+async def cb_admin_edit_price(call: types.CallbackQuery):
+    """ویرایش قیمت توسط ادمین"""
+    if not is_admin(call.from_user.id):
+        await call.answer("شما ادمین نیستید.", show_alert=True)
+        return
+    
+    token = call.data.split(":", 1)[1]
+    data = PENDING.get(token)
+    
+    if not data:
+        await call.answer("❌ درخواست یافت نشد یا منقضی شده است.", show_alert=True)
+        return
+    
+    await call.answer("لطفاً قیمت جدید را بر اساس میلیون تومان ارسال کنید.\nمثال: 120.5")
+    # اینجا باید state یا handler برای دریافت پیام بعدی ادمین اضافه کنید
+
+
+@router.callback_query(F.data.startswith("admin_edit_desc:"))
+async def cb_admin_edit_desc(call: types.CallbackQuery):
+    """ویرایش توضیحات توسط ادمین"""
+    if not is_admin(call.from_user.id):
+        await call.answer("شما ادمین نیستید.", show_alert=True)
+        return
+    
+    token = call.data.split(":", 1)[1]
+    data = PENDING.get(token)
+    
+    if not data:
+        await call.answer("❌ درخواست یافت نشد یا منقضی شده است.", show_alert=True)
+        return
+    
+    await call.answer("لطفاً توضیحات جدید را ارسال کنید.")
+    # اینجا باید state یا handler برای دریافت پیام بعدی ادمین اضافه کنید
+
+
+@router.callback_query(F.data.startswith("admin_apply_price:"))
+async def cb_admin_apply_price(call: types.CallbackQuery):
+    """اعمال قیمت در کانال"""
+    if not is_admin(call.from_user.id):
+        await call.answer("شما ادمین نیستید.", show_alert=True)
+        return
+    
+    token = call.data.split(":", 1)[1]
+    data = PENDING.get(token)
+    
+    if not data:
+        await call.answer("❌ درخواست یافت نشد یا منقضی شده است.", show_alert=True)
+        return
+    
+    grp = data.get("grp")
+    if not grp:
+        await call.answer("اطلاعات پیام کانال یافت نشد.", show_alert=True)
+        return
+    
+    form = data["form"]
+    
+    # بروزرسانی کپشن با قیمت
+    new_caption = build_caption(
+        form,
+        grp["number"],
+        grp["jdate"],
+        show_price=True,
+        show_desc=data["needs"].get("desc", False),
+    )
+    
+    try:
+        await call.bot.edit_message_caption(
+            chat_id=grp["chat_id"],
+            message_id=grp["msg_id"],
+            caption=new_caption,
+            parse_mode="HTML",
+        )
+        data["needs"]["price"] = True
+        await call.answer("✅ قیمت اعمال شد.", show_alert=True)
+    except Exception as e:
+        await call.answer(f"❌ خطا: {e}", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("admin_apply_desc:"))
+async def cb_admin_apply_desc(call: types.CallbackQuery):
+    """اعمال توضیحات در کانال"""
+    if not is_admin(call.from_user.id):
+        await call.answer("شما ادمین نیستید.", show_alert=True)
+        return
+    
+    token = call.data.split(":", 1)[1]
+    data = PENDING.get(token)
+    
+    if not data:
+        await call.answer("❌ درخواست یافت نشد یا منقضی شده است.", show_alert=True)
+        return
+    
+    grp = data.get("grp")
+    if not grp:
+        await call.answer("اطلاعات پیام کانال یافت نشد.", show_alert=True)
+        return
+    
+    form = data["form"]
+    
+    # بروزرسانی کپشن با توضیحات
+    new_caption = build_caption(
+        form,
+        grp["number"],
+        grp["jdate"],
+        show_price=data["needs"].get("price", False),
+        show_desc=True,
+    )
+    
+    try:
+        await call.bot.edit_message_caption(
+            chat_id=grp["chat_id"],
+            message_id=grp["msg_id"],
+            caption=new_caption,
+            parse_mode="HTML",
+        )
+        data["needs"]["desc"] = True
+        await call.answer("✅ توضیحات اعمال شد.", show_alert=True)
+    except Exception as e:
+        await call.answer(f"❌ خطا: {e}", show_alert=True)
