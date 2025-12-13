@@ -78,8 +78,10 @@ def build_caption(
     ins_text = f"{form.get('insurance')} ماه" if form.get("insurance") else "—"
     
     # نام و شماره تماس (دستی)
-    contact_name = "حاجی اسماعیلی"
-    contact_phone = "09121513089"
+    contact_1_name = "حاجی اسماعیلی"
+    contact_1_phone = "09121513089"
+    contact_2_name = "کیوان"
+    contact_2_phone = "09127475355"
     
     # سال: فقط به فارسی تبدیل
     year_display = to_persian_year(form['year'])
@@ -101,18 +103,23 @@ def build_caption(
         f"گیربکس: {html.quote(form.get('gear') or '—')}",
     ])
     
+    # توضیحات
     if show_desc and (form.get("desc") or "").strip():
-        parts.append(f"\n<b>توضیحات:</b>\n{html.quote(form['desc'])}")
+        parts.append("")
+        parts.append(f"<b>توضیحات:</b>")
+        parts.append(f"{html.quote(form['desc'])}")
     
     parts.append("")
     parts.append(f"☎️ <b>تماس:</b>")
-    parts.append(f"{contact_name} - \u200e{contact_phone}\u200e")
+    parts.append(f"{contact_1_name} - \u200e{contact_1_phone}\u200e")
+    parts.append(f"{contact_2_name} - \u200e{contact_2_phone}\u200e")
     
     parts.append("───────────────────")
     parts.append(f"🔖 <b>آگهی شماره #{number}</b>")
     parts.append(f"📅 <i>{jdate}</i>")
     
     return "\n".join(parts)
+
 
 
 # --------------------------------------------------------------------------- #
