@@ -166,6 +166,11 @@
         background: #1ea34d;
       }
 
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       /* آپلودر عکس */
       .upload-area {
         border: 2px dashed var(--border);
@@ -291,6 +296,17 @@
         font-weight: bold;
         margin-right: 8px;
       }
+
+      .debug-info {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--danger);
+        border-radius: var(--radius);
+        padding: 12px;
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--danger);
+        display: none;
+      }
     </style>
   </head>
 
@@ -397,6 +413,9 @@
           <div class="err" id="e_photos"></div>
           <div class="loading" id="loading">⏳ در حال پردازش عکس‌ها...</div>
 
+          <!-- Debug Info -->
+          <div class="debug-info" id="debug-info"></div>
+
           <div class="row">
             <button id="submit">📤 ارسال و انتشار آگهی</button>
           </div>
@@ -432,6 +451,22 @@
       tg.ready();
       const $ = (s) => document.querySelector(s);
 
+      // ✅ Debug logging
+      function debugLog(message, data = null) {
+        console.log(`[DEBUG] ${message}`, data || '');
+        const debugInfo = $("#debug-info");
+        debugInfo.style.display = "block";
+        debugInfo.innerHTML += `<div>${message}</div>`;
+        if (data) {
+          debugInfo.innerHTML += `<pre>${JSON.stringify(data, null, 2).substring(0, 200)}...</pre>`;
+        }
+      }
+
+      debugLog("WebApp initialized", { 
+        platform: tg.platform,
+        version: tg.version
+      });
+
       /* CATEGORY */
       let category = "فروش کارکرده";
       document.querySelectorAll(".tab").forEach((t) => {
@@ -441,6 +476,7 @@
             .forEach((x) => x.classList.remove("active"));
           t.classList.add("active");
           category = t.dataset.cat;
+          debugLog("Category changed", category);
         };
       });
 
@@ -487,7 +523,42 @@
         handleFiles(e.target.files);
       };
 
-      function handleFiles(files) {
+      // ✅ تابع فشرده‌سازی عکس
+      function compressImage(base64, maxWidth = 1200, quality = 0.8) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            // محاسبه ابعاد جدید
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // تبدیل به base64 با کیفیت پایین‌تر
+            const compressed = canvas.toDataURL('image/jpeg', quality);
+            debugLog(`Image compressed: ${img.width}x${img.height} → ${width}x${height}`);
+            resolve(compressed);
+          };
+          img.onerror = () => {
+            debugLog("Image load error");
+            resolve(base64); // اگر خطا داد، همون base64 اصلی رو برگردون
+          };
+          img.src = base64;
+        });
+      }
+
+      // ✅ پردازش فایل‌ها با فشرده‌سازی
+      async function handleFiles(files) {
         setErr("photos", "");
         
         const remaining = MAX_PHOTOS - photos.length;
@@ -501,38 +572,48 @@
         if (filesToProcess.length === 0) return;
 
         $("#loading").style.display = "block";
+        debugLog(`Processing ${filesToProcess.length} files...`);
 
         let processed = 0;
-        filesToProcess.forEach((file, idx) => {
+        
+        for (const file of filesToProcess) {
           if (!file.type.startsWith("image/")) {
             setErr("photos", "فقط فایل‌های تصویری مجاز هستند.");
             processed++;
-            if (processed === filesToProcess.length) {
-              $("#loading").style.display = "none";
-            }
-            return;
+            continue;
           }
 
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const base64 = e.target.result;
-            photos.push(base64);
-            processed++;
+          try {
+            debugLog(`Reading file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+
+            // خواندن فایل
+            const base64 = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+
+            // فشرده‌سازی
+            const compressed = await compressImage(base64, 1200, 0.8);
+            const compressedSize = (compressed.length / 1024).toFixed(1);
+            debugLog(`Compressed to ${compressedSize} KB`);
             
-            if (processed === filesToProcess.length) {
-              renderPreviews();
-              updatePhotoCount();
-              $("#loading").style.display = "none";
-            }
-          };
-          reader.onerror = () => {
-            processed++;
-            if (processed === filesToProcess.length) {
-              $("#loading").style.display = "none";
-            }
-          };
-          reader.readAsDataURL(file);
-        });
+            photos.push(compressed);
+            
+          } catch (error) {
+            debugLog("Error processing image", error.message);
+            console.error("خطا در پردازش عکس:", error);
+          }
+
+          processed++;
+          if (processed === filesToProcess.length) {
+            renderPreviews();
+            updatePhotoCount();
+            $("#loading").style.display = "none";
+            debugLog(`Total photos: ${photos.length}`);
+          }
+        }
 
         fileInput.value = "";
       }
@@ -555,6 +636,7 @@
             renderPreviews();
             updatePhotoCount();
             setErr("photos", "");
+            debugLog(`Photo removed. Remaining: ${photos.length}`);
           };
           
           div.appendChild(img);
@@ -629,14 +711,11 @@
         }
       }
 
-      /* ورودی سال - فارسی و انگلیسی */
+      /* ورودی سال */
       $("#year").addEventListener("input", () => {
         let v = $("#year").value;
-        // تبدیل ارقام فارسی به لاتین
         v = faToEnDigits(v);
-        // فقط اعداد
         v = v.replace(/[^0-9]/g, "");
-        // محدود به 4 رقم
         if (v.length > 4) v = v.slice(0, 4);
         $("#year").value = v;
         setErr("year", "");
@@ -661,7 +740,7 @@
         updatePriceHint();
       });
 
-      /* فقط ارقام لاتین در شماره تماس */
+      /* شماره تماس */
       $("#phone").addEventListener("input", () => {
         let v = faToEnDigits($("#phone").value);
         v = v.replace(/[^0-9]/g, "");
@@ -690,7 +769,6 @@
         clearErrors();
         let ok = true;
 
-        // نرمال‌سازی (اگر هنوز نشده)
         p.year = faToEnDigits(p.year);
         p.km = faToEnDigits(p.km);
         p.insurance = faToEnDigits(p.insurance);
@@ -706,7 +784,7 @@
         }
 
         if (!/^(1[34]\d{2}|20[012]\d)$/.test(p.year)) {
-          setErr("year", "سال ساخت باید ۴ رقم باشد (مثلاً ۱۴۰۱ یا 2018).");
+          setErr("year", "سال ساخت باید ۴ رقم باشد.");
           ok = false;
         }
 
@@ -741,6 +819,8 @@
 
       /* Submit */
       $("#submit").onclick = () => {
+        debugLog("Submit button clicked");
+        
         const data = {
           category,
           car: $("#car").value.trim(),
@@ -755,7 +835,16 @@
           photos: photos,
         };
 
-        if (!validate(data)) return;
+        debugLog("Form data collected", {
+          category: data.category,
+          car: data.car,
+          photosCount: photos.length
+        });
+
+        if (!validate(data)) {
+          debugLog("Validation failed");
+          return;
+        }
 
         const previewText = `دسته: ${data.category}
 نام خودرو: ${data.car}
@@ -772,11 +861,17 @@ ${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
 
         $("#preview").textContent = previewText;
         $("#dlg").style.display = "flex";
+        debugLog("Preview dialog opened");
       };
 
-      $("#cancel").onclick = () => ($("#dlg").style.display = "none");
+      $("#cancel").onclick = () => {
+        $("#dlg").style.display = "none";
+        debugLog("Dialog cancelled");
+      };
 
       $("#confirm").onclick = () => {
+        debugLog("Confirm button clicked");
+        
         const payload = {
           category,
           car: $("#car").value.trim(),
@@ -791,12 +886,34 @@ ${data.desc ? "\nتوضیحات:\n" + data.desc : ""}
           photos: photos,
         };
 
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
+        const payloadStr = JSON.stringify(payload);
+        const payloadSize = (payloadStr.length / 1024).toFixed(2);
+        
+        debugLog(`Payload size: ${payloadSize} KB`);
+        debugLog(`Photos count: ${photos.length}`);
+        
+        // محدودیت تلگرام معمولاً 64KB است
+        if (payloadStr.length > 60000) {
+          alert(`❌ حجم داده خیلی زیاد است (${payloadSize} KB).\nلطفاً عکس‌های کمتری انتخاب کنید.`);
+          debugLog("Payload too large!", payloadSize);
+          return;
+        }
+
+        try {
+          debugLog("Sending data to Telegram...");
+          tg.sendData(payloadStr);
+          debugLog("Data sent successfully");
+          tg.close();
+        } catch (error) {
+          debugLog("Send error", error.message);
+          console.error("خطا در ارسال:", error);
+          alert("❌ خطا در ارسال داده:\n" + error.message);
+        }
       };
 
       updatePriceHint();
       updatePhotoCount();
+      debugLog("Page loaded successfully");
     </script>
   </body>
 </html>
