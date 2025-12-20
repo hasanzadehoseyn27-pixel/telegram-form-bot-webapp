@@ -209,7 +209,7 @@
 
             <div>
               <label>سال ساخت *</label>
-              <input id="year" inputmode="numeric" placeholder="مثلاً 1401" />
+              <input id="year" placeholder="مثلاً ۱۴۰۱ یا 1401 یا 2018" />
               <div class="err" id="e_year"></div>
             </div>
           </div>
@@ -270,11 +270,11 @@
           <div class="err" id="e_price"></div>
 
           <!-- توضیحات -->
-          <label style="margin-top: 12px">توضیحات</label>
+          <label style="margin-top: 12px">توضیحات (وضعیت بدنه، رنگ‌شدگی، وضعیت شاسی‌ها، وضعیت فنی، لاستیک‌ها و ...)</label>
           <textarea id="desc" placeholder="دلخواه"></textarea>
 
           <div class="row">
-            <button id="submit">ثبت فرم</button>
+            <button id="submit">ارسال فرم</button>
           </div>
         </div>
       </div>
@@ -353,7 +353,7 @@
         let val = parseFloat(faToEnDigits(String(input)).replace(",", "."));
         if (isNaN(val) || val <= 0) return "";
 
-        val = Math.round(val * 10) / 10; // حداکثر ۱ رقم اعشار
+        val = Math.round(val * 10) / 10;
         let toman = Math.round(val * 1_000_000);
         let parts = [];
 
@@ -378,7 +378,6 @@
         const v = $("#price").value;
         const words = formatFromMillion(v);
         if (!v || !words) {
-          // راهنمای پیش‌فرض وقتی خالی است
           $("#price_hint").textContent =
             "مثال: 80 = 80 میلیون تومان، 120.5 = 120 میلیون و 500 هزار تومان.";
         } else {
@@ -386,14 +385,21 @@
         }
       }
 
+      /* ورودی سال - قبول فارسی و انگلیسی */
+      $("#year").addEventListener("input", () => {
+        let v = $("#year").value;
+        // نگه داشتن فارسی/لاتین برای نمایش
+        // فقط حذف کاراکترهای غیرعددی
+        v = v.replace(/[^\u06F0-\u06F9\u0660-\u06690-9]/g, "");
+        if (v.length > 4) v = v.slice(0, 4);
+        $("#year").value = v;
+        setErr("year", "");
+      });
+
       /* ورودی قیمت */
       $("#price").addEventListener("input", () => {
         let v = $("#price").value;
-
-        // تبدیل ارقام فارسی به لاتین
         v = faToEnDigits(v);
-
-        // فقط اعداد و , و .
         v = v.replace(/[^0-9.,]/g, "");
         v = v.replace(",", ".");
         const parts = v.split(".");
@@ -409,7 +415,7 @@
         updatePriceHint();
       });
 
-      /* فقط ارقام لاتین در شماره تماس هنگام تایپ */
+      /* فقط ارقام لاتین در شماره تماس */
       $("#phone").addEventListener("input", () => {
         let v = faToEnDigits($("#phone").value);
         v = v.replace(/[^0-9]/g, "");
@@ -417,76 +423,80 @@
         setErr("phone", "");
       });
 
-      /* اعتبارسنجی سمت کلاینت */
+      /* کارکرد */
+      $("#km").addEventListener("input", () => {
+        let v = faToEnDigits($("#km").value);
+        v = v.replace(/[^0-9]/g, "");
+        $("#km").value = v;
+        setErr("km", "");
+      });
+
+      /* بیمه */
+      $("#insurance").addEventListener("input", () => {
+        let v = faToEnDigits($("#insurance").value);
+        v = v.replace(/[^0-9]/g, "");
+        $("#insurance").value = v;
+        setErr("ins", "");
+      });
+
+      /* اعتبارسنجی */
       function validate(p) {
         clearErrors();
         let ok = true;
 
-        // نرمال‌سازی ارقام در فیلدهای عددی
+        // نرمال‌سازی ارقام
         p.year = faToEnDigits(p.year);
         p.km = faToEnDigits(p.km);
         p.insurance = faToEnDigits(p.insurance);
         p.phone = faToEnDigits(p.phone);
         p.price = faToEnDigits(p.price);
 
-        // بازنویسی در inputها (تا کاربر هم لاتین ببیند)
-        $("#year").value = p.year;
-        $("#km").value = p.km;
-        $("#insurance").value = p.insurance;
-        $("#phone").value = p.phone;
-        $("#price").value = p.price;
-
-        // نام خودرو: فارسی + انگلیسی + عدد فارسی و لاتین + فاصله
+        // نام خودرو
         if (
           !/^[آ-یA-Za-z0-9\u06F0-\u06F9\u0660-\u0669\s]{2,40}$/.test(p.car) ||
           /[0-9\u06F0-\u06F9\u0660-\u0669]{5,}/.test(p.car)
         ) {
-          setErr(
-            "car",
-            "نام خودرو معتبر نیست (عدد بیش از ۴ رقم پشت‌سرهم نباشد)."
-          );
+          setErr("car", "نام خودرو معتبر نیست.");
           ok = false;
         }
 
-        if (!/^[0-9]{4}$/.test(p.year)) {
-          setErr("year", "سال ساخت باید ۴ رقم لاتین باشد.");
+        // سال: 4 رقم، شمسی (1300-1430) یا میلادی (2000-2029)
+        if (!/^(1[34]\d{2}|20[012]\d)$/.test(p.year)) {
+          setErr("year", "سال ساخت باید ۴ رقم باشد (مثلاً 1403 یا 2024).");
           ok = false;
         }
 
+        // رنگ
         if (!/^[آ-ی\s]{1,12}$/.test(p.color)) {
-          setErr("color", "رنگ فقط حروف فارسی (حداکثر ۱۲ کاراکتر) باشد.");
+          setErr("color", "رنگ فقط حروف فارسی باشد.");
           ok = false;
         }
 
+        // کارکرد
         if (!/^[0-9]{1,6}$/.test(p.km)) {
-          setErr("km", "کارکرد باید عدد لاتین حداکثر ۶ رقمی باشد.");
+          setErr("km", "کارکرد نامعتبر است.");
           ok = false;
         }
 
+        // بیمه
         if (p.insurance && !/^[0-9]{1,2}$/.test(p.insurance)) {
-          setErr("ins", "مهلت بیمه حداکثر ۲ رقم لاتین (ماه) باشد.");
+          setErr("ins", "مهلت بیمه نامعتبر است.");
           ok = false;
         }
 
+        // شماره تماس
         if (!/^09[0-9]{9}$/.test(p.phone || "")) {
-          setErr(
-            "phone",
-            "شماره تماس باید با 09 شروع شده و ۱۱ رقم لاتین باشد."
-          );
+          setErr("phone", "شماره تماس باید ۱۱ رقم باشد.");
           ok = false;
         }
 
+        // قیمت
         if (!p.price || isNaN(parseFloat(p.price))) {
-          setErr(
-            "price",
-            "قیمت را به میلیون تومان وارد کنید (مثلاً 80 یا 120.5)."
-          );
+          setErr("price", "قیمت را وارد کنید.");
           ok = false;
         }
 
-        // بروزرسانی راهنمای قیمت بعد از نرمال‌سازی
         updatePriceHint();
-
         return ok;
       }
 
@@ -501,7 +511,7 @@
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
           phone: $("#phone").value.trim(),
-          price: $("#price").value.trim(), // میلیون
+          price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
         };
 
@@ -532,7 +542,6 @@ ${data.desc ? "توضیحات:\n" + data.desc : ""}`.trim();
           insurance: $("#insurance").value.trim(),
           gear: $("#gear").value,
           phone: $("#phone").value.trim(),
-          // برای بک‌اند: million_price
           million_price: $("#price").value.trim(),
           desc: $("#desc").value.trim(),
         };

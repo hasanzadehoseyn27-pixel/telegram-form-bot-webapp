@@ -91,7 +91,7 @@ def admin_my_channels_kb() -> ReplyKeyboardMarkup:
 
 def user_finish_kb(token: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📣 انتشار در گروه", callback_data=f"finish:{token}")]
+        [InlineKeyboardButton(text="✅ تایید نهایی", callback_data=f"finish:{token}")]
     ])
 
 

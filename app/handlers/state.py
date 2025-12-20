@@ -5,7 +5,7 @@ from __future__ import annotations
 """
 
 # تعداد مجاز عکس‌های هر آگهی
-MAX_PHOTOS = 5
+MAX_PHOTOS = 3
 
 # نگهداری آگهی‌های در انتظار بررسی
 PENDING: dict[str, dict] = {}
