@@ -24,3 +24,6 @@ ACCESS_CH_WAIT: dict[int, dict] = {}
 
 # وضعیت افزودن/حذف «کانال‌های من» (کانال‌های عضویت اجباری)
 MEMBERS_CH_WAIT: dict[int, dict] = {}
+
+# وضعیت افزودن/حذف/انتخاب «مقصدها»
+DEST_WAIT: dict[int, dict] = {}

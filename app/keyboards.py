@@ -31,6 +31,7 @@ def admin_root_kb(is_owner: bool) -> ReplyKeyboardMarkup:
 
     if is_owner:
         top.append(KeyboardButton(text="📣 کانال‌های من"))
+        top.append(KeyboardButton(text="🎯 مدیریت مقصدها"))
 
     rows = [
         top,
@@ -83,6 +84,23 @@ def admin_my_channels_kb() -> ReplyKeyboardMarkup:
     ]
     row2 = [KeyboardButton(text="🔙 بازگشت به پنل")]
     return ReplyKeyboardMarkup(keyboard=[row1, row2], resize_keyboard=True)
+
+
+# --------------------------------------------------------------------------- #
+#          زیرمنو: مدیریت مقصدها (برای OWNER)                                #
+# --------------------------------------------------------------------------- #
+
+def admin_destinations_kb() -> ReplyKeyboardMarkup:
+    row1 = [
+        KeyboardButton(text="📋 لیست مقصدها"),
+        KeyboardButton(text="➕ افزودن مقصد"),
+    ]
+    row2 = [
+        KeyboardButton(text="✅ انتخاب مقصد فعال"),
+        KeyboardButton(text="🗑 حذف مقصد"),
+    ]
+    row3 = [KeyboardButton(text="🔙 بازگشت به پنل")]
+    return ReplyKeyboardMarkup(keyboard=[row1, row2, row3], resize_keyboard=True)
 
 
 # --------------------------------------------------------------------------- #

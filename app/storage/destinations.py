@@ -56,6 +56,40 @@ def add_destination(chat_id: int, title: str = "") -> bool:
     return True
 
 
+def remove_destination(chat_id: int) -> bool:
+    _load()
+    cid = int(chat_id)
+
+    idx = next((i for i, it in enumerate(_DESTS.get("list", [])) if int(it.get("id", 0)) == cid), None)
+    if idx is None:
+        return False
+
+    _DESTS["list"].pop(idx)
+
+    # اگر active همین بود، یک مقصد دیگر را active کن
+    if int(_DESTS.get("active") or 0) == cid:
+        if _DESTS["list"]:
+            _DESTS["active"] = int(_DESTS["list"][0]["id"])
+        else:
+            _DESTS["active"] = 0
+
+    _save()
+    return True
+
+
+def set_active_destination(chat_id: int) -> bool:
+    _load()
+    cid = int(chat_id)
+
+    # فقط اگر داخل لیست باشد اجازه انتخاب
+    if not any(int(it.get("id", 0)) == cid for it in _DESTS.get("list", [])):
+        return False
+
+    _DESTS["active"] = cid
+    _save()
+    return True
+
+
 def get_active_destination() -> int:
     _load()
     return int(_DESTS.get("active") or 0)

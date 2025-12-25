@@ -171,7 +171,8 @@ async def cb_publish(call: types.CallbackQuery):
             )
     except Exception:
         try:
-            await call.bot.send_message(SETTINGS.TARGET_GROUP_ID, caption, parse_mode="HTML")
+            # ✅ فالبک باید به همان مقصد واقعی برود (نه SETTINGS ثابت)
+            await call.bot.send_message(grp["chat_id"], caption, parse_mode="HTML")
         except Exception:
             await call.answer("خطا در ارسال/ادیت پست.", show_alert=True)
             return

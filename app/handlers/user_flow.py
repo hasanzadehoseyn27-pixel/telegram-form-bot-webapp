@@ -13,6 +13,8 @@ from ..storage import (
     list_admins,
     is_admin,
     is_owner,
+    get_active_destination,
+    get_active_id_and_title,
 )
 from .state import (
     MAX_PHOTOS,
@@ -356,8 +358,12 @@ async def publish_to_destination(
         show_price=show_price,
         show_desc=show_desc,
     )
-    
-    dest = SETTINGS.TARGET_GROUP_ID
+
+    # ✅ مقصد فعال از storage (نه TARGET_GROUP_ID ثابت)
+    dest = int(get_active_destination() or 0)
+    if not dest:
+        dest = int(SETTINGS.TARGET_GROUP_ID or 0)
+
     photos = form.get("photos") or []
     
     if photos:
@@ -454,7 +460,12 @@ async def cb_finish(call: types.CallbackQuery):
         await call.answer("جلسه یافت نشد.", show_alert=True)
         return
     
-    if not SETTINGS.TARGET_GROUP_ID:
+    # مقصد فعال را می‌گیریم
+    dest = int(get_active_destination() or 0)
+    if not dest:
+        dest = int(SETTINGS.TARGET_GROUP_ID or 0)
+
+    if not dest:
         await call.answer("کانال مقصد در تنظیمات تعریف نشده.", show_alert=True)
         return
     

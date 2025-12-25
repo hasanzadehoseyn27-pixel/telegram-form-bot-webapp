@@ -9,15 +9,17 @@ from ..keyboards import (
     admin_admins_kb,
     admin_allowed_kb,
     admin_my_channels_kb,
-    start_keyboard,           # ← اضافه شد برای برگشت به منوی اصلی
+    admin_destinations_kb,
+    start_keyboard,
 )
 from ..storage import (
     list_admins, add_admin, remove_admin, is_admin, is_owner,
     list_allowed_channels, add_allowed_channel, remove_allowed_channel,
     list_required_channels, add_required_channel, remove_required_channel,
     add_destination,
+    list_destinations, set_active_destination, get_active_id_and_title, remove_destination, get_active_destination,
 )
-from .state import ADMIN_WAIT_INPUT, ACCESS_CH_WAIT, MEMBERS_CH_WAIT
+from .state import ADMIN_WAIT_INPUT, ACCESS_CH_WAIT, MEMBERS_CH_WAIT, DEST_WAIT
 
 router = Router()
 
@@ -55,7 +57,6 @@ async def admin_panel_root_msg(message: types.Message):
     await message.answer("پنل مدیریتی:", reply_markup=kb)
 
 
-# 🔙 این دکمه را در *منوی پنل مدیریتی* می‌زنیم تا برگردیم به منوی اصلی استارت
 @router.message(F.text == "🔙 بازگشت")
 async def admin_back_to_main_menu(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -68,8 +69,6 @@ async def admin_back_to_main_menu(message: types.Message):
     await message.answer("بازگشت به منوی اصلی ربات:", reply_markup=kb)
 
 
-# این دکمه در زیرمنوها است (ادمین‌ها، کانال‌های مجاز، کانال‌های من)
-# و فقط کاربر را به خودِ پنل مدیریتی برمی‌گرداند
 @router.message(F.text == "🔙 بازگشت به پنل")
 async def admin_back_to_panel(message: types.Message):
     if not is_admin(message.from_user.id):
@@ -79,7 +78,7 @@ async def admin_back_to_panel(message: types.Message):
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
 # --------------------------------------------------------------------------- #
-#                           بخش «ادمین‌ها»                                   #
+#                           بخش «ادمین‌ها»                                    #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "👤 مدیریت ادمین‌ها")
@@ -328,3 +327,122 @@ async def my_channels_flow(message: types.Message):
             ok = remove_required_channel(cid)
             await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین کانالی ثبت نشده است.")
     MEMBERS_CH_WAIT.pop(message.from_user.id, None)
+
+# --------------------------------------------------------------------------- #
+#                         بخش «مقصدها» (OWNER)                                #
+# --------------------------------------------------------------------------- #
+
+@router.message(F.text == "🎯 مدیریت مقصدها")
+async def destinations_root(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        return
+
+    aid, title = get_active_id_and_title()
+    kb = admin_destinations_kb()
+    await message.answer(
+        "مدیریت مقصدها:\n"
+        f"مقصد فعال فعلی: {aid or '—'} {('— ' + title) if title else ''}",
+        reply_markup=kb,
+    )
+
+@router.message(F.text == "📋 لیست مقصدها")
+async def destinations_list(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        return
+
+    items = list_destinations()
+    aid = get_active_destination()
+
+    if not items:
+        await message.answer("هیچ مقصدی ثبت نشده است.")
+        return
+
+    lines = ["مقصدهای ثبت‌شده:"]
+    for it in items:
+        cid = int(it.get("id") or 0)
+        title = it.get("title") or ""
+        flag = " ✅(فعال)" if cid == aid else ""
+        lines.append(f"- {cid}{(' — ' + title) if title else ''}{flag}")
+
+    await message.answer("\n".join(lines))
+
+@router.message(F.text == "➕ افزودن مقصد")
+async def destinations_add_start(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        return
+
+    DEST_WAIT[message.from_user.id] = {"mode": "add"}
+    await message.answer("لینک عمومی مقصد را بفرستید (مثال: https://t.me/testchannel).")
+
+@router.message(F.text == "✅ انتخاب مقصد فعال")
+async def destinations_set_active_start(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        return
+
+    DEST_WAIT[message.from_user.id] = {"mode": "set_active"}
+    await message.answer("لینک عمومی مقصد را بفرستید تا به عنوان مقصد فعال انتخاب شود.")
+
+@router.message(F.text == "🗑 حذف مقصد")
+async def destinations_remove_start(message: types.Message):
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ شما در حال حاضر به این بخش دسترسی ندارید.")
+        return
+
+    DEST_WAIT[message.from_user.id] = {"mode": "remove"}
+    await message.answer("لینک عمومی مقصد را بفرستید تا حذف شود.")
+
+@router.message(F.text, F.from_user.id.func(lambda uid: uid in DEST_WAIT))
+async def destinations_flow(message: types.Message):
+    if not is_owner(message.from_user.id):
+        return
+
+    st = DEST_WAIT.get(message.from_user.id)
+    if not st:
+        return
+
+    ref = _extract_public_tme_username_from_link(message.text)
+    if not ref:
+        await message.reply("❗ فقط لینک عمومی t.me/username پشتیبانی می‌شود.")
+        return
+
+    try:
+        chat = await message.bot.get_chat(ref)
+        cid = int(chat.id)
+        title = getattr(chat, "title", "") or getattr(chat, "full_name", "") or ""
+    except Exception:
+        await message.reply("❌ ربات نتوانست اطلاعات مقصد را بگیرد. مطمئن شوید ربات دسترسی دارد.")
+        return
+
+    mode = st.get("mode")
+
+    if mode == "add":
+        ok = add_destination(cid, title)
+        await message.reply("✅ مقصد اضافه شد." if ok else "ℹ️ قبلاً وجود داشت (در صورت نیاز عنوان بروزرسانی شد).")
+
+    elif mode == "set_active":
+        ok = set_active_destination(cid)
+        if ok:
+            await message.reply(f"✅ مقصد فعال شد: {cid} — {title or ref}")
+        else:
+            # اگر هنوز در لیست نبود، اول اضافه کن سپس فعال کن
+            add_destination(cid, title)
+            ok2 = set_active_destination(cid)
+            await message.reply(f"✅ مقصد فعال شد: {cid} — {title or ref}" if ok2 else "❌ خطا در فعال‌سازی مقصد.")
+
+    elif mode == "remove":
+        ok = remove_destination(cid)
+        await message.reply("🗑 حذف شد." if ok else "ℹ️ چنین مقصدی وجود نداشت.")
+
+    DEST_WAIT.pop(message.from_user.id, None)
+
+    # بازگشت به پنل مقصدها
+    aid, t = get_active_id_and_title()
+    await message.answer(
+        "مدیریت مقصدها:\n"
+        f"مقصد فعال فعلی: {aid or '—'} {('— ' + t) if t else ''}",
+        reply_markup=admin_destinations_kb(),
+    )
