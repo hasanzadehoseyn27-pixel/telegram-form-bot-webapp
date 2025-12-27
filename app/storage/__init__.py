@@ -1,10 +1,3 @@
-"""
-میان‌بری برای واردات یک‌خطی در دیگر بخش‌ها؛
-همهٔ توابع قدیمی همان نام خود را حفظ کرده‌اند.
-"""
-
-from .counter import next_daily_number
-
 from .admins import (
     bootstrap_admins,
     list_admins,
@@ -15,14 +8,6 @@ from .admins import (
     get_owner_id,
 )
 
-from .destinations import (
-    bootstrap_destinations,
-    add_destination,
-    list_destinations,
-    get_active_destination,
-    get_active_id_and_title,
-)
-
 from .allowed_channels import (
     bootstrap_allowed_channels,
     list_allowed_channels,
@@ -31,8 +16,23 @@ from .allowed_channels import (
     remove_allowed_channel,
 )
 
+from .counter import (
+    next_daily_number,
+)
+
+from .destinations import (
+    bootstrap_destinations,
+    list_destinations,
+    add_destination,
+    remove_destination,
+    set_active_destination,
+    get_active_destination,
+    get_active_id_and_title,
+)
+
 from .required_channels import (
     bootstrap_required_channels,
+    sync_required_channels,
     list_required_channels,
     get_required_channel_ids,
     add_required_channel,

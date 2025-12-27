@@ -24,7 +24,7 @@ from .state import ADMIN_WAIT_INPUT, ACCESS_CH_WAIT, MEMBERS_CH_WAIT, DEST_WAIT
 router = Router()
 
 # --------------------------------------------------------------------------- #
-#                              کمکى‌ها / Helpers                              #
+#                             کمکى‌ها / Helpers                               #
 # --------------------------------------------------------------------------- #
 
 def _extract_public_tme_username_from_link(text: str) -> str | None:
@@ -78,7 +78,7 @@ async def admin_back_to_panel(message: types.Message):
     await message.answer("بازگشت به پنل مدیریتی.", reply_markup=kb)
 
 # --------------------------------------------------------------------------- #
-#                           بخش «ادمین‌ها»                                    #
+#                           بخش «مدیریت ادمین‌ها»                              #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "👤 مدیریت ادمین‌ها")
@@ -86,18 +86,14 @@ async def admin_manage_admins_root(message: types.Message):
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
-    kb = admin_admins_kb()
+    
+    user_is_owner = is_owner(message.from_user.id)
+    kb = admin_admins_kb(user_is_owner)
+    
     await message.answer("مدیریت ادمین‌ها:", reply_markup=kb)
 
 @router.message(F.text == "📋 لیست ادمین‌ها")
 async def admin_list_msg(message: types.Message):
-    """
-    فهرست ادمین‌ها را با شکل زیر می‌فرستد:
-        123456789  —  @username
-    یا اگر کاربر username ندارد:
-        123456789  —  Ali Rezaei
-    و اگر خطا در واکشی رخ دهد فقط آیدی نمایش داده می‌شود.
-    """
     if not is_admin(message.from_user.id):
         await message.answer("دسترسی ندارید.")
         return
@@ -110,28 +106,34 @@ async def admin_list_msg(message: types.Message):
     lines = ["ادمین‌های فعلی:"]
     for uid in admins:
         try:
+            is_own = is_owner(uid)
+            tag = " 👑 (مالک اصلی)" if is_own else ""
+
             chat = await message.bot.get_chat(uid)
             uname = getattr(chat, "username", "") or ""
             full  = getattr(chat, "full_name", "") or getattr(chat, "first_name", "")
             extra = f"@{uname}" if uname else full
-            lines.append(f"{uid}  —  {extra}" if extra else str(uid))
+            
+            lines.append(f"{uid}  —  {extra}{tag}" if extra else f"{uid}{tag}")
         except Exception:
-            lines.append(str(uid))
+            is_own = is_owner(uid)
+            tag = " 👑 (مالک اصلی)" if is_own else ""
+            lines.append(f"{uid}{tag}")
 
     await message.answer("\n".join(lines))
 
 @router.message(F.text == "➕ افزودن ادمین")
 async def admin_add_msg(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await message.answer("دسترسی ندارید.")
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ دسترسی ندارید (فقط مالک اصلی).")
         return
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "add"}
     await message.answer("آیدی عددی کاربر را ارسال کنید تا ادمین شود:")
 
 @router.message(F.text == "🗑 حذف ادمین")
 async def admin_remove_msg(message: types.Message):
-    if not is_admin(message.from_user.id):
-        await message.answer("دسترسی ندارید.")
+    if not is_owner(message.from_user.id):
+        await message.answer("⛔ دسترسی ندارید (فقط مالک اصلی).")
         return
     ADMIN_WAIT_INPUT[message.from_user.id] = {"mode": "remove"}
     await message.answer("آیدی عددی ادمین را ارسال کنید تا حذف شود:")
@@ -142,7 +144,7 @@ async def admin_remove_msg(message: types.Message):
 )
 async def admin_id_input(message: types.Message):
     w = ADMIN_WAIT_INPUT.get(message.from_user.id)
-    if not w or not is_admin(message.from_user.id):
+    if not w or not is_owner(message.from_user.id):
         return
 
     uid = int(message.text.strip())
@@ -160,7 +162,7 @@ async def admin_id_input(message: types.Message):
 
 
 # --------------------------------------------------------------------------- #
-#                       بخش «کانال‌های مجاز ارسال» (OWNER)                   #
+#                       بخش «کانال‌های مجاز ارسال» (OWNER)                     #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "📡 مدیریت کانال‌های مجاز")
@@ -230,7 +232,7 @@ async def access_channel_flow(message: types.Message):
     if mode == "add":
         ok = add_allowed_channel(cid)
         if ok:
-            add_destination(cid, title)  # برای ثبت عنوان
+            add_destination(cid, title)
             await message.reply(f"✅ کانال مجاز اضافه شد.\nchat_id: {cid}\nعنوان: {title or ref}")
         else:
             await message.reply("ℹ️ این کانال قبلاً در لیست بود.")
@@ -243,7 +245,7 @@ async def access_channel_flow(message: types.Message):
     ACCESS_CH_WAIT.pop(message.from_user.id, None)
 
 # --------------------------------------------------------------------------- #
-#                      بخش «کانال‌های من» (عضویت اجباری)                     #
+#                       بخش «کانال‌های من» (عضویت اجباری)                      #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "📣 کانال‌های من")
@@ -329,7 +331,7 @@ async def my_channels_flow(message: types.Message):
     MEMBERS_CH_WAIT.pop(message.from_user.id, None)
 
 # --------------------------------------------------------------------------- #
-#                         بخش «مقصدها» (OWNER)                                #
+#                           بخش «مقصدها» (OWNER)                               #
 # --------------------------------------------------------------------------- #
 
 @router.message(F.text == "🎯 مدیریت مقصدها")
@@ -340,9 +342,20 @@ async def destinations_root(message: types.Message):
 
     aid, title = get_active_id_and_title()
     kb = admin_destinations_kb()
+
+    # تلاش برای دریافت یوزرنیم مقصد فعال
+    extra_info = ""
+    if aid:
+        try:
+            c = await message.bot.get_chat(aid)
+            if c.username:
+                extra_info = f" (@{c.username})"
+        except:
+            pass
+
     await message.answer(
         "مدیریت مقصدها:\n"
-        f"مقصد فعال فعلی: {aid or '—'} {('— ' + title) if title else ''}",
+        f"مقصد فعال فعلی: {aid or '—'}{extra_info} {('— ' + title) if title else ''}",
         reply_markup=kb,
     )
 
@@ -363,8 +376,19 @@ async def destinations_list(message: types.Message):
     for it in items:
         cid = int(it.get("id") or 0)
         title = it.get("title") or ""
+        
+        # نمایش یوزرنیم کانال
+        username_text = ""
+        try:
+            chat = await message.bot.get_chat(cid)
+            uname = getattr(chat, "username", None)
+            if uname:
+                username_text = f" — @{uname}"
+        except:
+            pass
+            
         flag = " ✅(فعال)" if cid == aid else ""
-        lines.append(f"- {cid}{(' — ' + title) if title else ''}{flag}")
+        lines.append(f"- {cid}{username_text}{(' — ' + title) if title else ''}{flag}")
 
     await message.answer("\n".join(lines))
 
@@ -428,7 +452,6 @@ async def destinations_flow(message: types.Message):
         if ok:
             await message.reply(f"✅ مقصد فعال شد: {cid} — {title or ref}")
         else:
-            # اگر هنوز در لیست نبود، اول اضافه کن سپس فعال کن
             add_destination(cid, title)
             ok2 = set_active_destination(cid)
             await message.reply(f"✅ مقصد فعال شد: {cid} — {title or ref}" if ok2 else "❌ خطا در فعال‌سازی مقصد.")
@@ -439,10 +462,19 @@ async def destinations_flow(message: types.Message):
 
     DEST_WAIT.pop(message.from_user.id, None)
 
-    # بازگشت به پنل مقصدها
+    # بازگشت به پنل مقصدها با نمایش اطلاعات کامل
     aid, t = get_active_id_and_title()
+    extra_info = ""
+    if aid:
+        try:
+            c = await message.bot.get_chat(aid)
+            if c.username:
+                extra_info = f" (@{c.username})"
+        except:
+            pass
+            
     await message.answer(
         "مدیریت مقصدها:\n"
-        f"مقصد فعال فعلی: {aid or '—'} {('— ' + t) if t else ''}",
+        f"مقصد فعال فعلی: {aid or '—'}{extra_info} {('— ' + t) if t else ''}",
         reply_markup=admin_destinations_kb(),
     )
